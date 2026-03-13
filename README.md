@@ -20,3 +20,30 @@ The goal of this project is to integrate two robots, **Pepper** and **Temi**, al
 
 - Siddharth Patni
 - Charmin Thesiya
+
+## What It Does
+
+Customer walks into a simulated grocery store → talks to Pepper → LLM checks inventory and decides what to do → Temi fetches items from shelves → sensor detects pickups and updates stock → dashboard shows everything live.
+
+## Architecture
+
+```text
+┌────────────────────┐  NAOqi (port 9559)   ┌───────────────┐
+│                    │ ──────────────────▶  │  Pepper       │
+│   orchestrator.py  │ ◀──────────────────  │  (humanoid)   │
+│   (Python 3.10)    │                      └───────────────┘
+│                    │  HTTP REST (8080)     ┌───────────────┐
+│   + GPT-4o         │ ──────────────────▶  │  Temi         │
+│   function calling  │ ◀──────────────────  │  (mobile)     │
+└────────┬───────────┘                      └───────────────┘
+         │
+         │  REST            ┌───────────────┐
+         ├─────────────────▶│  M5Stack      │
+         │                  │  (sensor)     │
+         │                  └───────────────┘
+         │
+         │  File I/O        ┌───────────────┐
+         └─────────────────▶│  Dashboard    │
+                            │  (Flask)      │
+                            └───────────────┘
+```
