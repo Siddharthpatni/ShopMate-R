@@ -1,0 +1,67 @@
+# inventory.py
+# JSON-based inventory. Load, search, check stock, update counts.
+
+import json
+from config import INVENTORY_FILE
+
+
+class Inventory:
+    def __init__(self):
+        self.items = []
+        self.load()
+
+    def load(self):
+        try:
+            with open(INVENTORY_FILE, "r") as f:
+                self.items = json.load(f).get("items", [])
+            print(f"Loaded {len(self.items)} items.")
+        except FileNotFoundError:
+            print(f"Warning: {INVENTORY_FILE} not found.")
+            self.items = []
+
+    def save(self):
+        with open(INVENTORY_FILE, "w") as f:
+            json.dump({"items": self.items}, f, indent=2)
+
+    def search(self, query):
+        """Search by name, category, or id. Case-insensitive."""
+        q = query.lower()
+        return [
+            item for item in self.items
+            if q in item["name"].lower()
+            or q in item.get("category", "").lower()
+            or q in item.get("id", "").lower()
+        ]
+
+    def get_by_id(self, item_id):
+        for item in self.items:
+            if item["id"] == item_id:
+                return item
+        return None
+
+    def check_stock(self, item_id):
+        """Returns (in_stock: bool, count: int)."""
+        item = self.get_by_id(item_id)
+        if not item:
+            return False, 0
+        return item["stock"] > 0, item["stock"]
+
+    def decrease_stock(self, item_id, amount=1):
+        """Decrease stock. Returns True if successful."""
+        item = self.get_by_id(item_id)
+        if item and item["stock"] >= amount:
+            item["stock"] -= amount
+            self.save()
+            return True
+        return False
+
+    def as_text(self):
+        """Full inventory as readable text. Passed to the LLM."""
+        lines = []
+        for item in self.items:
+            status = f"{item['stock']} left" if item["stock"] > 0 else "OUT OF STOCK"
+            lines.append(
+                f"- {item['name']} (id: {item['id']}, area: {item['category']}, "
+                f"€{item['price']:.2f}, {status})"
+            )
+        return "\n".join(lines)
