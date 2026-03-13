@@ -28,13 +28,13 @@ Customer walks into a simulated grocery store → talks to Pepper → LLM checks
 ## Architecture
 
 ```text
-┌────────────────────┐  NAOqi (port 9559)   ┌───────────────┐
+┌────────────────────┐                      ┌───────────────┐
 │                    │ ──────────────────▶  │  Pepper       │
 │   orchestrator.py  │ ◀──────────────────  │  (humanoid)   │
 │   (Python 3.10)    │                      └───────────────┘
-│                    │  HTTP REST (8080)     ┌───────────────┐
+│                    │                      ┌───────────────┐
 │   + GPT-4o         │ ──────────────────▶  │  Temi         │
-│   function calling  │ ◀──────────────────  │  (mobile)     │
+│   function calling │ ◀──────────────────  │  (mobile)     │
 └────────┬───────────┘                      └───────────────┘
          │
          │  REST            ┌───────────────┐
