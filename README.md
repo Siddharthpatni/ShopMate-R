@@ -19,5 +19,4 @@ The goal of this project is to integrate two robots, **Pepper** and **Temi**, al
 ## Team
 
 - Siddharth Patni
-- [Name 2]
-- [Name 3]
+- Charmin Thesiya
