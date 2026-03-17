@@ -22,8 +22,8 @@ class PepperRobot:
             return
 
         try:
-            from pypepper import Pepper
-            self.robot = Pepper(PEPPER_IP, LOCAL_IP)
+            from pypepper import PepperRobot as PypepperRobot
+            self.robot = PypepperRobot(PEPPER_IP, local_ip=LOCAL_IP)
             self.connected = True
             print(f"[PEPPER] Connected at {PEPPER_IP}")
         except ImportError:
@@ -31,15 +31,15 @@ class PepperRobot:
         except Exception as e:
             print(f"[PEPPER] Connection failed: {e} — mock mode")
 
-    def say(self, text):
+    def say(self, text, language="english"):
         """Make Pepper speak."""
         if self.connected:
             try:
-                self.robot.say(text)
+                self.robot.say(text, language=language)
             except Exception as e:
                 print(f"[PEPPER ERROR] say: {e}")
         else:
-            print(f"  [PEPPER]: {text}")
+            print(f"  [PEPPER] ({language}): {text}")
 
     def gesture(self, name):
         """
@@ -74,7 +74,38 @@ class PepperRobot:
             except Exception as e:
                 print(f"[PEPPER ERROR] tablet: {e}")
         else:
-            print(f"  [PEPPER TABLET]: {text}")
+            print(f"  [PEPPER TABLET TEXT]: {text}")
+
+    def show_image(self, url):
+        """Show image on Pepper's tablet screen."""
+        if self.connected:
+            try:
+                self.robot.show_image(url)
+            except Exception as e:
+                print(f"[PEPPER ERROR] show_image: {e}")
+        else:
+            print(f"  [PEPPER TABLET IMAGE]: {url}")
+
+    def wait(self, seconds):
+        """Wait for a certain amount of time."""
+        if self.connected:
+            try:
+                self.robot.wait(seconds)
+            except Exception as e:
+                print(f"[PEPPER ERROR] wait: {e}")
+        else:
+            import time
+            time.sleep(seconds)
+
+    def clear_tablet(self):
+        """Clear Pepper's tablet screen."""
+        if self.connected:
+            try:
+                self.robot.clear_tablet()
+            except Exception as e:
+                print(f"[PEPPER ERROR] clear_tablet: {e}")
+        else:
+            print(f"  [PEPPER TABLET CLEARED]")
 
     def listen(self):
         """
