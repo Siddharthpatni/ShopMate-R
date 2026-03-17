@@ -9,8 +9,8 @@ The goal of this project is to integrate two robots, **Pepper** and **Temi**, al
 ### Initial Roadmap
 
 - [x] Initial project setup and repository creation.
-- [ ] Investigate `pypepper` API for Pepper's interaction capabilities.
-- [ ] Investigate `pytemi` API for Temi's navigation capabilities.
+- [x] Investigate `pypepper` API for Pepper's interaction capabilities.
+- [x] Investigate `pytemi` API for Temi's navigation capabilities.
 - [ ] Set up main conversation logic for natural language requests.
 - [ ] Connect M5Stack sensors for shelf pickup detection.
 - [ ] Develop a Flask-based live dashboard.
@@ -20,6 +20,7 @@ The goal of this project is to integrate two robots, **Pepper** and **Temi**, al
 
 - Siddharth Patni
 - Charmin Thesiya
+- Vivek Devganiya 
 
 ## What It Does
 
@@ -33,7 +34,7 @@ Customer walks into a simulated grocery store → talks to Pepper → System che
 │   orchestrator.py  │ ◀──────────────────  │  (humanoid)   │
 │   (Python 3.10)    │                      └───────────────┘
 │                    │                      ┌───────────────┐
-│   + NLP           │ ──────────────────▶  │  Temi         │
+│   + NLP            │ ──────────────────▶  │  Temi         │
 │   logic handler    │ ◀──────────────────  │  (mobile)     │
 └────────┬───────────┘                      └───────────────┘
          │
