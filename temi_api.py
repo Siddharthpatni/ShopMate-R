@@ -45,15 +45,46 @@ class TemiRobot:
             print(f"  [TEMI GOTO]: {location_name}")
             return True
 
-    def say(self, text):
+    def say(self, text, language="english", animation=False):
         """Make Temi speak through its speaker. Blocks until done."""
         if self.connected:
             try:
-                self.robot.say(text)
+                self.robot.say(text, language=language, animation=animation)
             except Exception as e:
                 print(f"[TEMI ERROR] say: {e}")
         else:
-            print(f"  [TEMI SAYS]: {text}")
+            print(f"  [TEMI SAYS] ({language}): {text}")
+
+    def show_image(self, url):
+        """Show image on Temi's screen."""
+        if self.connected:
+            try:
+                self.robot.show_image(url)
+            except Exception as e:
+                print(f"[TEMI ERROR] show_image: {e}")
+        else:
+            print(f"  [TEMI SCREEN IMAGE]: {url}")
+
+    def wait(self, seconds):
+        """Wait for a certain amount of time."""
+        if self.connected:
+            try:
+                self.robot.wait(seconds)
+            except Exception as e:
+                print(f"[TEMI ERROR] wait: {e}")
+        else:
+            import time
+            time.sleep(seconds)
+
+    def clear_tablet(self):
+        """Clear Temi's screen."""
+        if self.connected:
+            try:
+                self.robot.clear_tablet()
+            except Exception as e:
+                print(f"[TEMI ERROR] clear_tablet: {e}")
+        else:
+            print(f"  [TEMI SCREEN CLEARED]")
 
     def go_home(self):
         """Send Temi back to home base / charging station."""
