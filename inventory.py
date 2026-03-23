@@ -47,7 +47,7 @@ class Inventory:
         return item["stock"] > 0, item["stock"]
 
     def decrease_stock(self, item_id, amount=1):
-        """Decrease stock. Returns True if successful."""
+        """Decrease stock count after an item is delivered. Returns True if successful."""
         item = self.get_by_id(item_id)
         if item and item["stock"] >= amount:
             item["stock"] -= amount
@@ -55,8 +55,26 @@ class Inventory:
             return True
         return False
 
+    def get_low_stock_items(self, threshold=3):
+        """
+        Returns all items with stock at or below the threshold.
+        Used to warn Pepper when something is running low so it can
+        mention it to customers or suggest alternatives.
+        """
+        return [
+            item for item in self.items
+            if 0 < item["stock"] <= threshold
+        ]
+
+    def is_out_of_stock(self, item_id):
+        """Returns True if the item is completely out of stock."""
+        item = self.get_by_id(item_id)
+        if not item:
+            return True
+        return item["stock"] == 0
+
     def as_text(self):
-        """Full inventory as readable text. Passed to the LLM."""
+        """Full inventory as readable text for the AI assistant."""
         lines = []
         for item in self.items:
             status = f"{item['stock']} left" if item["stock"] > 0 else "OUT OF STOCK"
