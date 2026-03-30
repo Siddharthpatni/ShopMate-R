@@ -18,14 +18,14 @@ class PepperRobot:
 
     def _try_connect(self):
         if platform.system() != "Linux":
-            print("[PEPPER] Not on Linux — mock mode (commands print to console)")
+            print("[PEPPER-SID] Not on Linux — Siddharth's mock mode (commands print to console)")
             return
 
         try:
             from pypepper import PepperRobot as PypepperRobot
             self.robot = PypepperRobot(PEPPER_IP, local_ip=LOCAL_IP)
             self.connected = True
-            print(f"[PEPPER] Connected at {PEPPER_IP}")
+            print(f"[PEPPER-SID] Connected at {PEPPER_IP} (Siddharth's version)")
         except ImportError:
             print("[PEPPER] pypepper not installed — mock mode")
         except Exception as e:

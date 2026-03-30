@@ -21,6 +21,7 @@ The goal of this project is to integrate two robots, **Pepper** and **Temi**, al
 - Siddharth Patni
 - Charmin Thesiya
 - Vivek Devganiya 
+- Mansi Dayani
 
 ## What It Does
 

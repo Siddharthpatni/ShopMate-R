@@ -22,7 +22,7 @@ class TemiRobot:
             from pytemi import TemiRobot as Temi
             self.robot = Temi(TEMI_IP)
             self.connected = True
-            print(f"[TEMI] Connected at {TEMI_IP}")
+            print(f"[TEMI-SID] Connected at {TEMI_IP} (Siddharth's version)")
         except ImportError:
             print("[TEMI] pytemi not installed — mock mode")
         except Exception as e:
