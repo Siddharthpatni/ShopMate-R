@@ -22,6 +22,7 @@ The goal of this project is to integrate two robots, **Pepper** and **Temi**, al
 - Siddharth Patni
 - Charmin Thesiya
 - Vivek Devganiya 
+- Mansi dayani
 
 ## What It Does
 
@@ -49,3 +50,15 @@ Customer walks into a simulated grocery store → talks to Pepper → System che
                             │  (Flask)      │
                             └───────────────┘
 ```
+
+## Temi Navigation Setup (Lab Only)
+
+Before running the orchestrator, you must manually save the shelf locations on Temi's internal map using its touchscreen mapping feature. The location names are exactly case-sensitive and must match `config.py`:
+
+1. Physically drive Temi to the Fruits & Vegetables area. Save location precisely as: `Area A`
+2. Drive to Drinks & Dairy. Save as: `Area B`
+3. Drive to Snacks & Dry Goods. Save as: `Area C`
+4. Drive to the Entrance/Checkout section. Save as: `Area D`
+5. Ensure Temi has a `home base` location saved at its charging station.
+
+Once these are saved, TemiMiddleware will successfully dispatch the robot when `orchestrator.py` commands it.

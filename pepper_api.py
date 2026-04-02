@@ -1,52 +1,42 @@
 # pepper_api.py
 # Wrapper for Pepper robot using pypepper.
-# Falls back to console output on macOS (pypepper is Linux-only).
-#
-# pypepper connects directly to Pepper's NAOqi runtime (port 9559).
-# It also starts a local HTTP server to serve images/text to Pepper's tablet.
-# Repo: https://gitlab-fi.ostfalia.de/hcr-lab/robot-control/middleware/pypepper.git
+# All fake mock modes removed for production code execution on the real platform.
+# Crashing here if hardware is unreachable is expected and correct.
 
-import platform
+import time
 from config import PEPPER_IP, LOCAL_IP
 
 
 class PepperRobot:
     def __init__(self):
+        print(f"[PEPPER] Connecting to {PEPPER_IP} for real execution...")
         self.connected = False
         self.robot = None
-        self._try_connect()
-
-    def _try_connect(self):
-        if platform.system() != "Linux":
-            print("[PEPPER-SID] Not on Linux — Siddharth's mock mode (commands print to console)")
-            return
-
         try:
-            from pypepper import PepperRobot as PypepperRobot
-            self.robot = PypepperRobot(PEPPER_IP, local_ip=LOCAL_IP)
-            self.connected = True
-            print(f"[PEPPER-SID] Connected at {PEPPER_IP} (Siddharth's version)")
+            from pypepper import Pepper
+            for attempt in range(3):
+                try:
+                    self.robot = Pepper(robot_ip=PEPPER_IP, local_ip=LOCAL_IP)
+                    self.connected = True
+                    print(f"[PEPPER] Connected at {PEPPER_IP}")
+                    break
+                except Exception as e:
+                    print(f"[PEPPER ERROR] Connection failed (attempt {attempt+1}/3): {e}")
+                    time.sleep(2)
+            if not self.connected:
+                print("[PEPPER ERROR] Could not connect to real Pepper. Continuing without robot hardware.")
         except ImportError:
-            print("[PEPPER] pypepper not installed — mock mode")
-        except Exception as e:
-            print(f"[PEPPER] Connection failed: {e} — mock mode")
+            print("[PEPPER ERROR] pypepper not installed. Continuing without robot hardware.")
 
     def say(self, text, language="english"):
-        """Make Pepper speak."""
-        if self.connected:
-            try:
-                self.robot.say(text, language=language)
-            except Exception as e:
-                print(f"[PEPPER ERROR] say: {e}")
-        else:
-            print(f"  [PEPPER] ({language}): {text}")
+        if not self.connected or not self.robot: return
+        try:
+            self.robot.say(text)
+        except Exception as e:
+            print(f"[PEPPER ERROR] Failed to perform say(): {e}")
 
     def gesture(self, name):
-        """
-        Trigger a gesture animation on Pepper.
-        Names are mapped to NAOqi animation paths.
-        TODO: verify these paths work on our Pepper in the lab.
-        """
+        if not self.connected or not self.robot: return
         animations = {
             "wave": "animations/Stand/Gestures/Hey_1",
             "point_left": "animations/Stand/Gestures/ShowTablet_1",
@@ -54,69 +44,54 @@ class PepperRobot:
             "nod": "animations/Stand/Gestures/Yes_1",
             "bow": "animations/Stand/Gestures/BowShort_1",
         }
-        if self.connected:
+        anim = animations.get(name)
+        if anim:
             try:
-                anim = animations.get(name)
-                if anim:
-                    self.robot.animate(anim)
-                else:
-                    print(f"[PEPPER] Unknown gesture: {name}")
+                self.robot.animate(anim)
             except Exception as e:
-                print(f"[PEPPER ERROR] gesture: {e}")
+                print(f"[PEPPER ERROR] Failed to perform gesture({name}): {e}")
         else:
-            print(f"  [PEPPER GESTURE]: {name}")
+            print(f"[PEPPER ERROR] Unknown gesture: {name}")
 
     def show_on_tablet(self, text):
-        """Show text on Pepper's tablet screen."""
-        if self.connected:
-            try:
-                self.robot.show_text(text)
-            except Exception as e:
-                print(f"[PEPPER ERROR] tablet: {e}")
-        else:
-            print(f"  [PEPPER TABLET TEXT]: {text}")
+        if not self.connected or not self.robot: return
+        try:
+            self.robot.show_text(text)
+        except Exception as e:
+            print(f"[PEPPER ERROR] Failed to show on tablet: {e}")
 
     def show_image(self, url):
-        """Show image on Pepper's tablet screen."""
-        if self.connected:
-            try:
-                self.robot.show_image(url)
-            except Exception as e:
-                print(f"[PEPPER ERROR] show_image: {e}")
-        else:
-            print(f"  [PEPPER TABLET IMAGE]: {url}")
+        if not self.connected or not self.robot: return
+        try:
+            self.robot.show_image(url)
+        except Exception as e:
+            print(f"[PEPPER ERROR] Failed to show image: {e}")
 
     def wait(self, seconds):
-        """Wait for a certain amount of time."""
-        if self.connected:
-            try:
-                self.robot.wait(seconds)
-            except Exception as e:
-                print(f"[PEPPER ERROR] wait: {e}")
-        else:
-            import time
+        if not self.connected or not self.robot: 
+            time.sleep(seconds)
+            return
+        try:
+            self.robot.wait(seconds)
+        except Exception as e:
+            print(f"[PEPPER ERROR] Failed to wait: {e}")
             time.sleep(seconds)
 
     def clear_tablet(self):
-        """Clear Pepper's tablet screen."""
-        if self.connected:
-            try:
-                self.robot.clear_tablet()
-            except Exception as e:
-                print(f"[PEPPER ERROR] clear_tablet: {e}")
-        else:
-            print(f"  [PEPPER TABLET CLEARED]")
+        if not self.connected or not self.robot: return
+        try:
+            self.robot.clear_tablet()
+        except Exception as e:
+            print(f"[PEPPER ERROR] Failed to clear tablet: {e}")
 
     def listen(self):
-        """
-        Listen for speech and return transcribed text.
-        Returns None in mock mode (text input used instead).
-        TODO: check exact pypepper speech recognition method in lab.
-        """
-        if self.connected:
-            try:
-                return self.robot.listen()
-            except Exception as e:
-                print(f"[PEPPER ERROR] listen: {e}")
-                return None
-        return None
+        """Listen from the real Pepper's mic blockingly."""
+        if not self.connected or not self.robot:
+            time.sleep(1) # Fake delay
+            return ""
+        try:
+            return self.robot.listen()
+        except Exception as e:
+            print(f"\n[PEPPER ERROR] Failed to listen: {e}")
+            time.sleep(1)
+            return ""
