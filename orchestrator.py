@@ -1,223 +1,392 @@
+# orchestrator.py
+# Central brain of ShopMate-R.
+# Connects to the LLM, manages customer conversations, dispatches robots.
+#
+# Run: python orchestrator.py
+# Uses text input for testing. In the lab, Pepper's mic feeds into this.
+
 import json
 import time
-import os
+import threading
+from collections import deque
+from openai import OpenAI
 
-# ==============================================================================
-# ShopMate-R Orchestrator Logic - Week X
-# 
-# This file contains the foundational logic for the ShopMate-R grocery assistant.
-# The functionality will be iteratively expanded over the next 5-6 weeks.
-# ==============================================================================
-
-# TODO (Week 1): basic initialization of Temi and Pepper API wrappers
-# TODO (Week 2): Inventory loading and basic searching logic
-# TODO (Week 3): LLM Integration (OpenAI API connection for conversation)
-# TODO (Week 4): Implement Temi navigation queue and task management
-# TODO (Week 5): Integrate M5Stack sensors for shelf pickup detection
-# TODO (Week 6): Live testing, edge case handling, and dashboard syncing
-
+from config import OPENAI_API_KEY, STORE_AREAS, STATE_FILE
 from inventory import Inventory
+from pepper_api import PepperRobot
+from temi_api import TemiRobot
 
-try:
-    from openai import OpenAI
-    _openai_available = True
-except ImportError:
-    _openai_available = False
-    print("[WARNING] openai package not installed. LLM features will be disabled.")
-    print("          Run:  pip install openai")
+client = OpenAI(api_key=OPENAI_API_KEY)
+inventory = Inventory()
+pepper = PepperRobot()
+temi = TemiRobot()
 
-from config import (
-    OPENAI_MODEL,
-    OPENAI_MAX_TOKENS,
-    OPENAI_TEMPERATURE,
-    SYSTEM_PROMPT,
-)
+# --- State ---
+order_queue = deque()
+temi_busy = False
+temi_current_task = None
+conversations = {}  # per-customer conversation history
+action_log = []
 
 
-class Orchestrator:
-    def __init__(self):
-        """
-        Initialize the core components of the orchestrator.
-        """
-        self.inventory = Inventory()
-        self.order_queue = []
-        self.temi_busy = False
+def sync_dashboard():
+    """Write state to shared file so dashboard.py can read it."""
+    state = {
+        "temi_busy": temi_busy,
+        "temi_current_task": temi_current_task,
+        "queue": list(order_queue),
+        "log": action_log[-50:]
+    }
+    try:
+        with open(STATE_FILE, "w") as f:
+            json.dump(state, f, indent=2)
+    except Exception:
+        pass
 
-        self._conversation_history = [
-            {"role": "system", "content": SYSTEM_PROMPT}
-        ]
-        self._llm_client = None
-        if _openai_available:
-            api_key = os.getenv("OPENAI_API_KEY")
-            if api_key:
-                self._llm_client = OpenAI(api_key=api_key)
-                print("[LLM] OpenAI client initialised successfully.")
-            else:
-                print("[WARNING] OPENAI_API_KEY environment variable not set. LLM will return a stub response.")
 
-        print("[INIT] Orchestrator started. Components initializing...")
-        self._setup_robots()
+def log_action(message):
+    """Add entry to action log and sync dashboard."""
+    action_log.append({"time": time.strftime("%H:%M:%S"), "message": message})
+    sync_dashboard()
 
-    def _setup_robots(self):
-        """
-        Placeholder logic to connect to the physical robots (Pepper and Temi).
-        """
-        # pepper = PepperRobot()
-        # temi = TemiRobot()
-        print("[SETUP] Waiting for robot API implemention...")
 
-    def load_inventory(self, filepath=None):
-        """
-        Loads the store inventory from a JSON file.
-        """
-        print(f"[STORE] Loading inventory from {filepath}...")
-        if filepath:
-            import config as _cfg
-            _cfg.INVENTORY_FILE = filepath
-        self.inventory.load()
+def bg_goto_and_done(area_name):
+    """Run goto in background, then proceed with the queue."""
+    temi.goto(area_name)
+    temi_task_done()
 
-    def search_inventory(self, query):
-        """
-        Search inventory by name, category, or id. Returns matching items.
-        """
-        results = self.inventory.search(query)
-        if results:
-            print(f"[SEARCH] '{query}' -> {len(results)} match(es) found:")
-            for item in results:
-                status = f"{item['stock']} in stock" if item["stock"] > 0 else "OUT OF STOCK"
-                print(f"         - {item['name']} (aisle {item['aisle']}, {item['price']:.2f}) - {status}")
-        else:
-            print(f"[SEARCH] No items found for '{query}'.")
-        return results
 
-    def check_item_stock(self, item_id):
-        """
-        Returns (in_stock: bool, count: int) for a given item id.
-        """
-        in_stock, count = self.inventory.check_stock(item_id)
-        label = f"{count} in stock" if in_stock else "OUT OF STOCK"
-        print(f"[STOCK] '{item_id}' -> {label}")
-        return in_stock, count
+# --- LLM function definitions ---
 
-    def _build_context_message(self):
-        """
-        Summarise current inventory as text to inject into the LLM prompt.
-        """
-        return (
-            "=== Current store inventory ===\n"
-            + self.inventory.as_text()
-            + "\n==============================="
-        )
-
-    def _ask_llm(self, user_message):
-        """
-        Send user_message to the OpenAI API and return the assistant reply.
-        """
-        if not _openai_available or self._llm_client is None:
-            # Graceful stub when the SDK / key is absent
-            return (
-                "[LLM STUB] OpenAI client unavailable. "
-                f"You asked: '{user_message}'"
-            )
-
-        # Refresh inventory context inside the system message
-        self._conversation_history[0] = {
-            "role": "system",
-            "content": SYSTEM_PROMPT + "\n\n" + self._build_context_message(),
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "search_inventory",
+            "description": "Search store inventory by name or category.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "What to search for"}
+                },
+                "required": ["query"]
+            }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_item_stock",
+            "description": "Check stock count for a specific item.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "item_id": {"type": "string"}
+                },
+                "required": ["item_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "pepper_say",
+            "description": "Make Pepper say something to the customer.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string"}
+                },
+                "required": ["text"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "pepper_gesture",
+            "description": "Make Pepper do a gesture.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "gesture": {
+                        "type": "string",
+                        "enum": ["wave", "point_left", "point_right", "nod", "bow"]
+                    }
+                },
+                "required": ["gesture"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "send_temi_to_fetch",
+            "description": "Send Temi to a store area to fetch an item. Queues if busy.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "item_id": {"type": "string"},
+                    "area": {"type": "string", "enum": list(STORE_AREAS.keys())},
+                    "customer_id": {"type": "string"},
+                },
+                "required": ["item_id", "area", "customer_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "temi_speak",
+            "description": "Make Temi say something through its speaker.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string"}
+                },
+                "required": ["text"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_queue_status",
+            "description": "Check how many orders are waiting.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+]
 
-        # Append the new user turn
-        self._conversation_history.append(
-            {"role": "user", "content": user_message}
+SYSTEM_PROMPT = """You are ShopMate-R, a friendly grocery store assistant speaking through the Pepper robot.
+
+Temi is a mobile robot that fetches items from shelves when you tell it to.
+
+Current inventory:
+
+{inventory}
+
+Rules:
+- Greet customers briefly. Don't be over the top.
+- Search inventory before promising anything.
+- If out of stock, suggest a similar item that IS in stock.
+- Vague requests ("something for breakfast") → suggest 2-3 specific items and ask.
+- Multiple items → batch by area so Temi makes fewer trips.
+- Temi busy → tell customer their order is queued.
+- Stock ≤ 3 → mention casually ("we're running low on those").
+- Talk like a person in a small shop. Short sentences. No corporate speak.
+- Never mention item IDs, area codes, or technical details to the customer.
+- Use gestures naturally: wave to greet, nod to confirm, point toward areas.
+"""
+
+
+def execute_function(name, args):
+    """Run a function the LLM called. Return result string."""
+    global temi_busy, temi_current_task
+
+    if name == "search_inventory":
+        results = inventory.search(args["query"])
+        if results:
+            return json.dumps([
+                {"id": r["id"], "name": r["name"], "area": r["category"],
+                 "stock": r["stock"], "price": r["price"]}
+                for r in results
+            ])
+        return "No matching items found."
+
+    elif name == "check_item_stock":
+        in_stock, count = inventory.check_stock(args["item_id"])
+        item = inventory.get_by_id(args["item_id"])
+        if item:
+            return f"{item['name']}: {count} in stock, area: {item['category']}"
+        return "Item not found."
+
+    elif name == "pepper_say":
+        text = args.get("text", "")
+        pepper.say(text)
+        log_action(f"Pepper: {text[:80]}")
+        return "Done."
+
+    elif name == "pepper_gesture":
+        gesture = args.get("gesture", "nod")
+        pepper.gesture(gesture)
+        log_action(f"Pepper gesture: {gesture}")
+        return "Done."
+
+    elif name == "send_temi_to_fetch":
+        item_id = args["item_id"]
+        area = args["area"]
+        cust = args.get("customer_id", "?")
+        task = {"item_id": item_id, "area": area, "customer_id": cust}
+
+        if not temi_busy:
+            temi_busy = True
+            temi_current_task = task
+            area_name = STORE_AREAS.get(area, area)
+            temi.say(f"Heading to {area_name}")
+            threading.Thread(target=bg_goto_and_done, args=(area_name,), daemon=True).start()
+            log_action(f"Temi → {area_name} for {item_id} (customer {cust})")
+            sync_dashboard()
+            return f"Temi heading to {area_name} for {item_id}."
+        else:
+            order_queue.append(task)
+            log_action(f"Queued: {item_id} for customer {cust} (#{len(order_queue)})")
+            sync_dashboard()
+            return f"Temi busy. Queued at position {len(order_queue)}."
+
+    elif name == "temi_speak":
+        temi.say(args.get("text", ""))
+        return "Done."
+
+    elif name == "get_queue_status":
+        current = temi_current_task["item_id"] if temi_current_task else "none"
+        return f"Fetching: {current}. Queued: {len(order_queue)}."
+
+    return "Unknown function."
+
+
+def temi_task_done():
+    """Called when Temi finishes a delivery."""
+    global temi_busy, temi_current_task
+
+    if temi_current_task:
+        inventory.decrease_stock(temi_current_task["item_id"])
+        log_action(f"Delivered {temi_current_task['item_id']} to customer {temi_current_task['customer_id']}")
+        print(f"  [DONE] Delivered {temi_current_task['item_id']}. Stock updated.")
+
+    if order_queue:
+        next_task = order_queue.popleft()
+        temi_current_task = next_task
+        area_name = STORE_AREAS.get(next_task["area"], next_task["area"])
+        temi.say(f"Next up, heading to {area_name}")
+        threading.Thread(target=bg_goto_and_done, args=(area_name,), daemon=True).start()
+        log_action(f"Temi → {area_name} for {next_task['item_id']}")
+        print(f"  [TEMI] Next: {next_task['item_id']} at {area_name}")
+    else:
+        temi_busy = False
+        temi_current_task = None
+        threading.Thread(target=temi.goto, args=("Area D",), daemon=True).start()
+        print("  [TEMI] Queue empty. Returning to entrance.")
+
+    sync_dashboard()
+
+
+def handle_customer(customer_id, message):
+    """Process a customer message through the LLM."""
+    if customer_id not in conversations:
+        conversations[customer_id] = []
+
+    conversations[customer_id].append({
+        "role": "user",
+        "content": f"[Customer {customer_id}]: {message}"
+    })
+
+    system = SYSTEM_PROMPT.format(inventory=inventory.as_text())
+    messages = [{"role": "system", "content": system}] + conversations[customer_id]
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages,
+        tools=TOOLS,
+        tool_choice="auto",
+    )
+    msg = response.choices[0].message
+
+    # LLM might call multiple functions before giving a final answer
+    while msg.tool_calls:
+        conversations[customer_id].append({
+            "role": "assistant",
+            "content": msg.content,
+            "tool_calls": [
+                {"id": tc.id, "type": "function",
+                 "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                for tc in msg.tool_calls
+            ]
+        })
+
+        for tc in msg.tool_calls:
+            print(f"  [LLM calling {tc.function.name}...]")
+            result = execute_function(tc.function.name, json.loads(tc.function.arguments))
+            conversations[customer_id].append({
+                "role": "tool",
+                "tool_call_id": tc.id,
+                "content": result
+            })
+
+        messages = [{"role": "system", "content": system}] + conversations[customer_id]
+        response = client.chat.completions.create(
+            model="gpt-4o-mini", messages=messages, tools=TOOLS, tool_choice="auto",
         )
+        msg = response.choices[0].message
 
-        try:
-            response = self._llm_client.chat.completions.create(
-                model=OPENAI_MODEL,
-                messages=self._conversation_history,
-                max_tokens=OPENAI_MAX_TOKENS,
-                temperature=OPENAI_TEMPERATURE,
-            )
-            reply = response.choices[0].message.content.strip()
-        except Exception as exc:
-            reply = f"[LLM ERROR] {exc}"
+    if msg.content:
+        conversations[customer_id].append({"role": "assistant", "content": msg.content})
+        print(f"\n  [LLM]: {msg.content}\n")
 
-        # Store assistant reply in history for multi-turn context
-        self._conversation_history.append(
-            {"role": "assistant", "content": reply}
-        )
-        return reply
-
-    def handle_customer_request(self, customer_input):
-        """
-        The main interaction loop processing customer speech/text via the LLM.
-        """
-        print(f"[PEPPER - LISTENING] Customer says: '{customer_input}'")
-
-        # 1. Search inventory for quick local match
-        self.search_inventory(customer_input)
-
-        # 2. Send input to LLM for natural language response
-        llm_reply = self._ask_llm(customer_input)
-
-        # 3. Trigger appropriate action
-        print(f"[PEPPER - SPEAKING] {llm_reply}")
-        return llm_reply
-
-    def reset_conversation(self):
-        """
-        Clear conversation history (start a new customer session).
-        """
-        self._conversation_history = [
-            {"role": "system", "content": SYSTEM_PROMPT}
-        ]
-        print("[LLM] Conversation history cleared. New session started.")
-
-    def queue_temi_task(self, item_id, area):
-        """
-        Adds a fetching task to Temi's queue and manages its busy state.
-        """
-        task = {"item": item_id, "destination": area}
-        self.order_queue.append(task)
-        print(f"[QUEUE] Task added: Fetch {item_id} from {area}. Queue length: {len(self.order_queue)}")
-        self.process_queue()
-
-    def process_queue(self):
-        """
-        Checks if Temi is free and sends it to the next location if it is.
-        """
-        if not self.temi_busy and len(self.order_queue) > 0:
-            next_task = self.order_queue.pop(0)
-            self.temi_busy = True
-            print(f"[TEMI - NAVIGATING] Moving to {next_task['destination']} to fetch {next_task['item']}.")
-            # Trigger temi.goto(area) here
-        elif self.temi_busy:
-            print("[TEMI - STATUS] Currently busy. Task remains in queue.")
-
-    def handle_sensor_pickup(self, sensor_id):
-        """
-        Logic to handle unexpected stock changes based on distance sensors.
-        """
-        # M5Stack REST integration to be added
-        print(f"[SENSOR] Activity detected at sensor {sensor_id}.")
+    return msg.content
 
 
 def main():
-    """
-    Main execution loop.
-    """
-    app = Orchestrator()
-    app.load_inventory("data/inventory.json")
+    print("=" * 50)
+    print("  ShopMate-R — Grocery Shopping Assistant")
+    print("=" * 50)
+    print()
+    print("Commands:")
+    print("  anything            → talk as customer 1")
+    print("  customer:2 hello    → talk as customer 2")
+    print("  done                → Temi finished delivery")
+    print("  stock               → show inventory")
+    print("  queue               → show order queue")
+    print("  quit                → exit")
+    print()
 
-    # Mock Interaction Loop
-    print("\n--- Starting Mock Interaction ---")
-    app.handle_customer_request("Do you have any almond milk?")
-    app.queue_temi_task("almond_milk", "drinks_dairy")
+    while True:
+        try:
+            print("\n  [Listening on Pepper's mic...]")
+            user_input = pepper.listen()
+            if not user_input:
+                continue
+            print(f"> {user_input}")
+        except (EOFError, KeyboardInterrupt):
+            print("\nBye.")
+            break
 
-    # Simulate time passing
-    time.sleep(1)
+        if not user_input:
+            continue
 
-    app.handle_sensor_pickup("sensor_dairy_01")
+        cmd = user_input.lower()
+
+        if cmd == "quit":
+            break
+        elif cmd == "done":
+            temi_task_done()
+            continue
+        elif cmd == "stock":
+            print(inventory.as_text())
+            continue
+        elif cmd == "queue":
+            if temi_current_task:
+                print(f"  Current: {temi_current_task['item_id']} → customer {temi_current_task['customer_id']}")
+            else:
+                print("  Temi is idle.")
+            for i, task in enumerate(order_queue):
+                print(f"  #{i+1}: {task['item_id']} → customer {task['customer_id']}")
+            if not order_queue and not temi_current_task:
+                print("  No pending orders.")
+            continue
+
+        # Parse customer ID
+        if user_input.startswith("customer:"):
+            parts = user_input.split(" ", 1)
+            customer_id = parts[0].split(":")[1]
+            message = parts[1] if len(parts) > 1 else ""
+        else:
+            customer_id = "1"
+            message = user_input
+
+        if message:
+            handle_customer(customer_id, message)
+
 
 if __name__ == "__main__":
     main()
