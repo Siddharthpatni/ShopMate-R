@@ -1,17 +1,18 @@
 # emotion_detection.py
 # PART 1 — Core Detection Engine  (camera capture + DeepFace analysis)
 # PART 2 — Voice & Response Logic (voice profiles + scripted responses)
-#
-# Part 3 (Pepper integration + continuous background thread) comes next.
+# PART 3 — Pepper Integration     (EmotionDetector class, cooldown, background thread)
 #
 # Dependencies:
 #   pip install opencv-python deepface tf-keras
 #
-# Run standalone to test:
+# Run standalone demo (no Pepper hardware needed):
 #   python emotion_detection.py
 
 import cv2
+import time
 import random
+import threading
 from deepface import DeepFace
 
 
@@ -58,7 +59,7 @@ def capture_frame(camera_index: int = 0):
         print("[EMOTION] ERROR: Failed to read frame from camera.")
         return None
 
-    print(f"[EMOTION] Frame captured — shape: {frame.shape}")   # (height, width, 3)
+    print(f"[EMOTION] Frame captured — shape: {frame.shape}")
     return frame
 
 
@@ -165,7 +166,7 @@ def detect_once(camera_index: int = 0) -> dict | None:
     """
     Capture one frame, detect emotion, print result, and return the dict.
 
-    This function is imported and used by Part 3 (Pepper integration).
+    Used internally by the EmotionDetector class in Part 3.
     Returns None if the camera or face detection failed.
     """
     frame = capture_frame(camera_index)
@@ -302,7 +303,7 @@ EMOTION_RESPONSES = {
 #     Given an emotion string, return the chosen voice profile and a
 #     randomly selected scripted line in one dict.
 #
-#     This is the single function that Part 3 (Pepper integration) will call
+#     This is the single function that Part 3 (Pepper integration) calls
 #     to know both *what* to say and *how* to say it.
 # ---------------------------------------------------------------------------
 
@@ -346,26 +347,219 @@ def select_response(emotion: str) -> dict:
 
 
 # ===========================================================================
-# STANDALONE DEMO — run directly to test Parts 1 & 2 without Pepper hardware
+# PART 3 — PEPPER INTEGRATION & CONTINUOUS MODE
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# 3. EmotionDetector CLASS
+#
+#    Wraps Parts 1 and 2 and adds:
+#      - Direct connection to PepperRobot (from pepper_api.py)
+#      - Cooldown timer  → Pepper won't respond more often than every N seconds
+#      - Background thread via run_continuous() → runs silently alongside
+#        the orchestrator's LLM conversation loop
+#      - Graceful stop() to end the background thread cleanly
+#
+#    Usage in orchestrator.py:
+#        from emotion_detection import EmotionDetector
+#        detector = EmotionDetector(pepper, cooldown_seconds=15)
+#        detector.run_continuous(interval_seconds=2.0)
+# ---------------------------------------------------------------------------
+
+class EmotionDetector:
+    """
+    Continuously detects customer facial emotions via the webcam and
+    instructs Pepper to respond with an appropriate voice tone and message.
+
+    Parameters
+    ----------
+    pepper : PepperRobot
+        An instance of PepperRobot from pepper_api.py.
+        Must have a .say(text) method.
+    camera_index : int
+        OpenCV camera index (0 = built-in / first USB webcam).
+    cooldown_seconds : int
+        Minimum gap in seconds between consecutive Pepper responses.
+        Prevents Pepper from interrupting a customer repeatedly.
+    """
+
+    def __init__(self, pepper, camera_index: int = 0, cooldown_seconds: int = 10):
+        self.pepper           = pepper
+        self.camera_index     = camera_index
+        self.cooldown_seconds = cooldown_seconds
+
+        self._last_response_time = 0.0   # unix timestamp of last Pepper response
+        self._running            = False  # flag that controls the background loop
+        self._lock               = threading.Lock()  # thread-safe flag access
+
+        print(
+            f"[EMOTION] EmotionDetector ready "
+            f"(camera={camera_index}, cooldown={cooldown_seconds}s)"
+        )
+
+    # ------------------------------------------------------------------
+    # 3a. PUBLIC API
+    # ------------------------------------------------------------------
+
+    def run_once(self) -> dict | None:
+        """
+        Capture one frame, detect emotion, and make Pepper respond.
+
+        Call this when you want a single on-demand scan — e.g. triggered
+        by a motion sensor or a specific node in the Node-RED flow.
+
+        Returns
+        -------
+        dict  { emotion, confidence, face_count } from detect_once()
+        or None if the camera or face detection failed.
+        """
+        result = detect_once(self.camera_index)
+        if result is None:
+            return None
+
+        self._respond(result["emotion"], result["confidence"])
+        return result
+
+    def run_continuous(self, interval_seconds: float = 1.5) -> threading.Thread:
+        """
+        Start a background thread that calls run_once() repeatedly.
+
+        Returns immediately — the rest of your program keeps running.
+        Call stop() to end the thread gracefully.
+
+        Parameters
+        ----------
+        interval_seconds : float
+            Seconds to wait between each frame grab.
+        """
+        with self._lock:
+            if self._running:
+                print("[EMOTION] Already running in continuous mode.")
+                return
+
+            self._running = True
+
+        print(
+            f"[EMOTION] Continuous mode started "
+            f"(interval={interval_seconds}s, cooldown={self.cooldown_seconds}s). "
+            f"Call stop() to end."
+        )
+
+        thread = threading.Thread(
+            target=self._loop,
+            args=(interval_seconds,),
+            daemon=True,   # thread exits automatically when the main program exits
+        )
+        thread.start()
+        return thread
+
+    def stop(self):
+        """Signal the background loop to stop after the current cycle."""
+        with self._lock:
+            self._running = False
+        print("[EMOTION] Stop signal sent — loop will end after current cycle.")
+
+    # ------------------------------------------------------------------
+    # 3b. INTERNAL — PEPPER RESPONSE
+    # ------------------------------------------------------------------
+
+    def _respond(self, emotion: str, confidence: float):
+        """
+        Apply the correct voice + scripted line and make Pepper speak.
+
+        Enforces the cooldown period — if Pepper spoke recently this call
+        is silently skipped so the customer is not interrupted mid-sentence.
+
+        Parameters
+        ----------
+        emotion : str
+            Dominant emotion string from DeepFace.
+        confidence : float
+            0–100 confidence percentage (informational only here).
+        """
+        now = time.time()
+        elapsed = now - self._last_response_time
+
+        if elapsed < self.cooldown_seconds:
+            remaining = self.cooldown_seconds - elapsed
+            print(f"[EMOTION] Cooldown — {remaining:.1f}s remaining. Skipping response.")
+            return
+
+        # Select the right text and voice settings (from Part 2)
+        response = select_response(emotion)
+
+        # ------------------------------------------------------------------
+        # Apply NAOqi voice parameters on real Pepper hardware.
+        # The pypepper wrapper does not yet expose ALTextToSpeech directly,
+        # so the pitch/speed values are logged here for reference.
+        # When connected to NAOqi you would call:
+        #     tts = session.service("ALTextToSpeech")
+        #     tts.setParameter("pitchShift", response["pitch"])
+        #     tts.setParameter("speed",      response["speed"] * 100)
+        # ------------------------------------------------------------------
+        print(
+            f"[EMOTION] Applying voice: "
+            f"pitch={response['pitch']}  speed={response['speed']}"
+        )
+
+        # Tell Pepper to speak — uses PepperRobot.say() from pepper_api.py
+        self.pepper.say(response["text"])
+
+        self._last_response_time = time.time()
+
+    # ------------------------------------------------------------------
+    # 3c. INTERNAL — BACKGROUND LOOP
+    # ------------------------------------------------------------------
+
+    def _loop(self, interval_seconds: float):
+        """Background thread body — runs until stop() is called."""
+        while True:
+            with self._lock:
+                if not self._running:
+                    break
+
+            self.run_once()
+            time.sleep(interval_seconds)
+
+        print("[EMOTION] Background loop stopped.")
+
+
+# ===========================================================================
+# STANDALONE DEMO
+# Run:  python emotion_detection.py
+# Uses MockPepper so no Pepper hardware is needed.
 # ===========================================================================
 
 if __name__ == "__main__":
-    import time
 
-    print("=" * 50)
-    print("  Emotion Detection — Part 1 + Part 2 Demo")
-    print("=" * 50)
+    class MockPepper:
+        """Simulates PepperRobot.say() by printing to the console."""
+        def say(self, text, language="english"):
+            print(f"  ╔══ PEPPER SPEAKS ({language})")
+            print(f"  ║   {text}")
+            print(f"  ╚══")
+
+    print("=" * 55)
+    print("  Emotion Detection — Full Demo (Parts 1 + 2 + 3)")
+    print("=" * 55)
     print()
-    print("Scanning your face every 4 seconds.")
-    print("Press Ctrl-C to stop.")
+    print("  • Webcam scans every 2 seconds")
+    print("  • Pepper responds at most every 8 seconds (cooldown)")
+    print("  • Press Ctrl-C to stop")
     print()
 
-    while True:
-        result = detect_once(camera_index=0)
-        if result:
-            response = select_response(result["emotion"])
-            print(f"  → Pepper would speak ({response['description']}):")
-            print(f"    \"{response['text']}\"")
-            print(f"    pitch={response['pitch']}  speed={response['speed']}")
-        print()
-        time.sleep(4)
+    detector = EmotionDetector(
+        pepper=MockPepper(),
+        camera_index=0,
+        cooldown_seconds=8,
+    )
+
+    thread = detector.run_continuous(interval_seconds=2.0)
+
+    try:
+        # Keep the main thread alive so the daemon thread keeps running
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        detector.stop()
+        print("\n  Demo ended. Goodbye!")
