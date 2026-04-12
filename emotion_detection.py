@@ -1,7 +1,7 @@
 # emotion_detection.py
-# PART 1 — Core Detection Engine  (camera capture + DeepFace analysis)
-# PART 2 — Voice & Response Logic (voice profiles + scripted responses)
-# PART 3 — Pepper Integration     (EmotionDetector class, cooldown, background thread)
+# 1 — Core Detection Engine  (camera capture + DeepFace analysis)
+# 2 — Voice & Response Logic (voice profiles + scripted responses)
+# 3 — Pepper Integration     (EmotionDetector class, cooldown, background thread)
 #
 # Dependencies:
 #   pip install opencv-python deepface tf-keras
@@ -13,11 +13,23 @@ import cv2
 import time
 import random
 import threading
+import json
+import os
 from deepface import DeepFace
+
+# Load emotion responses and voice profiles from JSON
+try:
+    _dir = os.path.dirname(os.path.abspath(__file__))
+    _json_path = os.path.join(_dir, "responses.json")
+    with open(_json_path, "r", encoding="utf-8") as _f:
+        EMOTION_DATA = json.load(_f)
+except FileNotFoundError:
+    print("[EMOTION] ERROR: responses.json not found! Falling back to empty defaults.")
+    EMOTION_DATA = {}
 
 
 # ===========================================================================
-# PART 1 — CORE DETECTION ENGINE
+# 1 — CORE DETECTION ENGINE
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
@@ -183,123 +195,15 @@ def detect_once(camera_index: int = 0) -> dict | None:
 
 
 # ===========================================================================
-# PART 2 — VOICE & RESPONSE LOGIC
+# 2 — VOICE & RESPONSE LOGIC
 # ===========================================================================
 
 # ---------------------------------------------------------------------------
-# 2a. VOICE PROFILES
-#     Maps each emotion to pitch and speed multipliers that shape how
-#     Pepper sounds when it speaks.
-#
-#     pitch < 1.0  →  deeper / calmer voice
-#     pitch > 1.0  →  higher / brighter voice
-#     speed < 1.0  →  slower, giving the customer more space
-#     speed > 1.0  →  faster, more energetic
-#
-#     On real Pepper hardware these values feed into NAOqi's
-#     ALTextToSpeech service:
-#         tts.setParameter("pitchShift", profile["pitch"])
-#         tts.setParameter("speed",      profile["speed"] * 100)
+# 2a. VOICE PROFILES AND RESPONSES (Now imported from responses.json)
 # ---------------------------------------------------------------------------
 
-VOICE_PROFILES = {
-    "angry": {
-        "pitch":       0.80,   # lower pitch — calm, not confrontational
-        "speed":       0.85,   # slower — gives the customer space
-        "description": "calm and reassuring",
-    },
-    "sad": {
-        "pitch":       0.90,   # slightly lower — empathetic
-        "speed":       0.90,   # gentle pace
-        "description": "warm and encouraging",
-    },
-    "fear": {
-        "pitch":       0.95,
-        "speed":       0.85,
-        "description": "calm and reassuring",
-    },
-    "disgust": {
-        "pitch":       0.85,
-        "speed":       0.90,
-        "description": "calm and helpful",
-    },
-    "surprise": {
-        "pitch":       1.05,   # slightly higher — matches their energy
-        "speed":       1.05,
-        "description": "upbeat and engaging",
-    },
-    "happy": {
-        "pitch":       1.10,   # brighter voice — match the happy mood
-        "speed":       1.10,
-        "description": "cheerful and energetic",
-    },
-    "neutral": {
-        "pitch":       1.00,   # natural default voice
-        "speed":       1.00,
-        "description": "friendly and natural",
-    },
-}
-
-
 # ---------------------------------------------------------------------------
-# 2b. EMOTION RESPONSES
-#     Scripted lines Pepper can say for each emotion.
-#     random.choice() picks one each time so Pepper doesn't repeat itself.
-#     All lines are written to be short, human, and non-corporate.
-# ---------------------------------------------------------------------------
-
-EMOTION_RESPONSES = {
-    "angry": [
-        "I'm really sorry if something has upset you. "
-        "I'm here to make your visit as smooth as possible — what can I help you with?",
-        "I can see you might be frustrated. "
-        "Let me do my best to sort things out for you right away.",
-        "Your time is valuable. "
-        "Let me take care of things quickly so you can be on your way.",
-    ],
-    "sad": [
-        "It looks like you might be having a tough day. "
-        "I hope I can brighten it up a little — what do you need?",
-        "I'm here for you. "
-        "Let me know how I can help and I'll do my very best.",
-        "Sometimes a little treat can help. "
-        "Can I suggest something nice from our store today?",
-    ],
-    "fear": [
-        "Please don't worry — I'm here to help and everything is under control. "
-        "What can I do for you?",
-        "Take your time. I'm right here whenever you're ready.",
-    ],
-    "disgust": [
-        "I'm sorry if something isn't up to standard. "
-        "Please let me know and we'll fix it immediately.",
-        "Your feedback matters to us. "
-        "How can I make your experience better today?",
-    ],
-    "surprise": [
-        "Something caught you off guard? I love surprises too! "
-        "How can I help you today?",
-        "Oh, did I startle you? Sorry about that! "
-        "Is there anything I can assist you with?",
-    ],
-    "happy": [
-        "You look wonderful today! "
-        "It's great to have you here. What can I help you find?",
-        "Love the positive energy! "
-        "Let's make this a great shopping trip — what are you looking for?",
-        "Fantastic to see you smiling! "
-        "How can I make your visit even better?",
-    ],
-    "neutral": [
-        "Hello! Welcome. What can I help you with today?",
-        "Hi there! Feel free to ask me anything about our products.",
-        "Good to see you! How can I assist you today?",
-    ],
-}
-
-
-# ---------------------------------------------------------------------------
-# 2c. select_response()
+# 2b. select_response()
 #     Given an emotion string, return the chosen voice profile and a
 #     randomly selected scripted line in one dict.
 #
@@ -309,7 +213,8 @@ EMOTION_RESPONSES = {
 
 def select_response(emotion: str) -> dict:
     """
-    Pick a voice profile and a scripted response line for the given emotion.
+    Pick a voice profile and a scripted response line for the given emotion
+    from the loaded JSON configuration.
 
     Parameters
     ----------
@@ -327,27 +232,38 @@ def select_response(emotion: str) -> dict:
     """
     # Normalise to lowercase; fall back to neutral for any unknown label
     key = emotion.lower()
-    if key not in VOICE_PROFILES:
+    if key not in EMOTION_DATA:
         print(f"[EMOTION] Unknown emotion '{emotion}' — falling back to neutral.")
         key = "neutral"
 
-    profile = VOICE_PROFILES[key]
-    text    = random.choice(EMOTION_RESPONSES[key])
+    # Fallback to defaults if 'neutral' is missing or JSON didn't load
+    if key not in EMOTION_DATA:
+        return {"emotion": key, "text": "Hello.", "pitch": 1.0, "speed": 1.0, "description": "default fallback"}
 
-    print(f"[EMOTION] Voice profile : {profile['description']}")
+    data = EMOTION_DATA[key]
+    
+    # Pick a random phrase from the 'responses' array
+    phrase_list = data.get("responses", ["Hello."])
+    text = random.choice(phrase_list)
+
+    description = data.get("description", "friendly and natural")
+    pitch = data.get("pitch", 1.0)
+    speed = data.get("speed", 1.0)
+
+    print(f"[EMOTION] Voice profile : {description}")
     print(f"[EMOTION] Response text : \"{text}\"")
 
     return {
         "emotion":     key,
         "text":        text,
-        "pitch":       profile["pitch"],
-        "speed":       profile["speed"],
-        "description": profile["description"],
+        "pitch":       pitch,
+        "speed":       speed,
+        "description": description,
     }
 
 
 # ===========================================================================
-# PART 3 — PEPPER INTEGRATION & CONTINUOUS MODE
+# 3 — PEPPER INTEGRATION & CONTINUOUS MODE
 # ===========================================================================
 
 # ---------------------------------------------------------------------------

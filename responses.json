@@ -1,0 +1,69 @@
+{
+  "angry": {
+    "pitch": 0.80,
+    "speed": 0.85,
+    "description": "calm and reassuring",
+    "responses": [
+      "I'm really sorry if something has upset you. I'm here to make your visit as smooth as possible — what can I help you with?",
+      "I can see you might be frustrated. Let me do my best to sort things out for you right away.",
+      "Your time is valuable. Let me take care of things quickly so you can be on your way."
+    ]
+  },
+  "sad": {
+    "pitch": 0.90,
+    "speed": 0.90,
+    "description": "warm and encouraging",
+    "responses": [
+      "It looks like you might be having a tough day. I hope I can brighten it up a little — what do you need?",
+      "I'm here for you. Let me know how I can help and I'll do my very best.",
+      "Sometimes a little treat can help. Can I suggest something nice from our store today?"
+    ]
+  },
+  "fear": {
+    "pitch": 0.95,
+    "speed": 0.85,
+    "description": "calm and reassuring",
+    "responses": [
+      "Please don't worry — I'm here to help and everything is under control. What can I do for you?",
+      "Take your time. I'm right here whenever you're ready."
+    ]
+  },
+  "disgust": {
+    "pitch": 0.85,
+    "speed": 0.90,
+    "description": "calm and helpful",
+    "responses": [
+      "I'm sorry if something isn't up to standard. Please let me know and we'll fix it immediately.",
+      "Your feedback matters to us. How can I make your experience better today?"
+    ]
+  },
+  "surprise": {
+    "pitch": 1.05,
+    "speed": 1.05,
+    "description": "upbeat and engaging",
+    "responses": [
+      "Something caught you off guard? I love surprises too! How can I help you today?",
+      "Oh, did I startle you? Sorry about that! Is there anything I can assist you with?"
+    ]
+  },
+  "happy": {
+    "pitch": 1.10,
+    "speed": 1.10,
+    "description": "cheerful and energetic",
+    "responses": [
+      "You look wonderful today! It's great to have you here. What can I help you find?",
+      "Love the positive energy! Let's make this a great shopping trip — what are you looking for?",
+      "Fantastic to see you smiling! How can I make your visit even better?"
+    ]
+  },
+  "neutral": {
+    "pitch": 1.00,
+    "speed": 1.00,
+    "description": "friendly and natural",
+    "responses": [
+      "Hello! Welcome. What can I help you with today?",
+      "Hi there! Feel free to ask me anything about our products.",
+      "Good to see you! How can I assist you today?"
+    ]
+  }
+}
