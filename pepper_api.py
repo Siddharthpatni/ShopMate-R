@@ -169,7 +169,13 @@ def _product_card_html(product: dict) -> str:
   }}
 </style></head><body>
 <div class="card">
-  <div class="icon">🛒</div>
+  <div class="icon">
+    <svg width="80" height="80" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M6 2L3 6V20C3 20.5304 3.21071 21.0391 3.58579 21.4142C3.96086 21.7893 4.46957 22 5 22H19C19.5304 22 20.0391 21.7893 20.4142 21.4142C20.7893 21.0391 21 20.5304 21 20V6L18 2H6Z" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M3 6H21" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M16 10C16 11.0609 15.5786 12.0783 14.8284 12.8284C14.0783 13.5786 13.0609 14 12 14C10.9391 14 9.92172 13.5786 9.17157 12.8284C8.42143 12.0783 8 11.0609 8 10" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
   <div class="name">{name}</div>
   <div class="price">EUR {price:.2f}</div>
   <div class="detail">Aisle: {aisle}</div>
@@ -177,6 +183,50 @@ def _product_card_html(product: dict) -> str:
   <div class="badge">ShopMate-R</div>
 </div>
 </body></html>"""
+
+
+def pepper_show_welcome():
+    """Show a friendly welcome screen on Pepper's tablet."""
+    if not _display_enabled(): return
+    print("📺 Pepper tablet shows welcome screen")
+    html = """<!DOCTYPE html><html><head><meta charset="utf-8">
+    <style>
+      body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #00b4db, #0083b0); display: flex; align-items: center; justify-content: center; min-height: 100vh; color: #fff; margin:0; }
+      .card { background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border-radius: 24px; padding: 60px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+      .title { font-size: 54px; font-weight: bold; margin-bottom: 20px; }
+      .subtitle { font-size: 28px; opacity: 0.9; }
+    </style></head><body>
+    <div class="card">
+      <div class="title">Welcome! 👋</div>
+      <div class="subtitle">How can I help you today?</div>
+    </div>
+    </body></html>"""
+    try:
+        _pepper.show_html(html)
+    except Exception as e:
+        print(f"[pepper_api] show_welcome failed: {e}")
+
+
+def pepper_show_goodbye():
+    """Show a goodbye screen on Pepper's tablet."""
+    if not _display_enabled(): return
+    print("📺 Pepper tablet shows goodbye screen")
+    html = """<!DOCTYPE html><html><head><meta charset="utf-8">
+    <style>
+      body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #11998e, #38ef7d); display: flex; align-items: center; justify-content: center; min-height: 100vh; color: #fff; margin:0; }
+      .card { background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); border-radius: 24px; padding: 60px; text-align: center; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+      .title { font-size: 54px; font-weight: bold; margin-bottom: 20px; }
+      .subtitle { font-size: 28px; opacity: 0.9; }
+    </style></head><body>
+    <div class="card">
+      <div class="title">Goodbye! ✨</div>
+      <div class="subtitle">Have a wonderful day!</div>
+    </div>
+    </body></html>"""
+    try:
+        _pepper.show_html(html)
+    except Exception as e:
+        print(f"[pepper_api] show_goodbye failed: {e}")
 
 
 def pepper_clear_tablet():
@@ -203,6 +253,51 @@ def pepper_prompt_listen(prompt: str = "I'm listening."):
     if not pepper_mic_active():
         return
     pepper_say(prompt)
+
+
+def pepper_listen(timeout: float = 6.0) -> str:
+    """Record from Pepper's mic, download, and transcribe. Returns text."""
+    if not pepper_mic_active():
+        return ""
+    
+    local_path = "tmp_pepper_audio.wav"
+    try:
+        # 1. Record on robot and pull back to PC
+        _pepper.record_audio(timeout, local_path)
+        
+        # 2. Transcribe locally using speech_recognition
+        import speech_recognition as sr
+        import os, sys
+        
+        # Suppress ALSA/PortAudio noise during import/init
+        stderr = sys.stderr
+        sys.stderr = open(os.devnull, 'w')
+        try:
+            r = sr.Recognizer()
+            with sr.AudioFile(local_path) as source:
+                audio = r.record(source)
+            text = r.recognize_google(audio)
+        finally:
+            sys.stderr = stderr
+
+        # 3. Keyword matching (item names)
+        # We try to find items from the database in the text
+        from grocery_db import get_all_items
+        all_items = [item['name'].lower() for item in get_all_items()]
+        
+        words = text.lower().split()
+        for it in all_items:
+            if it in text.lower():
+                print(f"🎯 Keyword detected: {it}")
+                return it
+
+        print(f"👂 Pepper heard: {text}")
+        return text
+    except Exception as e:
+        # Check if it was just silence
+        if "recognition connection error" not in str(e).lower():
+            print(f"[pepper_api] listen failed or no speech: {e}")
+        return ""
 
 
 # =========================================================================

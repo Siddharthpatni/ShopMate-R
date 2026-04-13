@@ -24,6 +24,10 @@ from pepper_api import (
     pepper_prompt_listen,
     pepper_close,
     pepper_say,
+    pepper_listen,
+    pepper_show_welcome,
+    pepper_show_goodbye,
+    pepper_wave_hello,
 )
 from temi_api import (
     temi_mic_active,
@@ -77,19 +81,21 @@ def start_dashboard():
 # =========================================================================
 
 def listen_from_microphone() -> str:
+    if pepper_mic_active():
+        pepper_prompt_listen("I'm listening, what do you need?")
+        return pepper_listen(timeout=6.0)
+
     try:
         import speech_recognition as sr
     except ImportError:
         print("[main] speech_recognition not installed — falling back to text input")
         return input("👤 You: ")
 
-    owner = "Pepper" if pepper_mic_active() else ("Temi" if temi_mic_active() else "PC")
-    print(f"🎙️  Listening via {owner}...")
-
-    if pepper_mic_active():
-        pepper_prompt_listen("I'm listening, what do you need?")
-    elif temi_mic_active():
+    if temi_mic_active():
         temi_prompt_listen("Tell me what you need.")
+
+    owner = "Temi" if temi_mic_active() else "PC"
+    print(f"🎙️  Listening via {owner}...")
 
     r = sr.Recognizer()
     try:
@@ -167,6 +173,10 @@ def main():
     print("\nReady. Waiting for customers. "
           "Type 'shutdown' to stop the program entirely.\n")
 
+    # Startup interaction
+    pepper_show_welcome()
+    pepper_wave_hello()
+    
     try:
         while True:
             result = serve_one_customer()
@@ -178,7 +188,8 @@ def main():
     except KeyboardInterrupt:
         print("\n[main] Interrupted.")
     finally:
-        pepper_say("Store closing. Goodbye.", gesture=True)
+        pepper_show_goodbye()
+        pepper_say("Goodbye, See You Soon!", gesture=True)
         pepper_close()
         print("👋 ShopMate-R shut down cleanly.")
 

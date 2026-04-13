@@ -1,5 +1,6 @@
 import paramiko
 import time
+import config
 
 class PepperRobotSSH:
     """
@@ -22,6 +23,8 @@ class PepperRobotSSH:
             
             # Wake up robot and reset posture
             self._exec('qicli call ALMotion.wakeUp')
+            self._exec('qicli call ALAudioDevice.setMicrophoneGain 100')
+            self._exec(f'qicli call ALAudioDevice.setOutputVolume {config.PEPPER_VOLUME}')
         except Exception as e:
             # Fallback for alternative password
             try:
@@ -29,6 +32,8 @@ class PepperRobotSSH:
                 self.client.connect(self.ip, username=self.username, password=self.password, timeout=5)
                 print("✅ Pepper SSH Connected! (Alt password)")
                 self._exec('qicli call ALMotion.wakeUp')
+                self._exec('qicli call ALAudioDevice.setMicrophoneGain 100')
+                self._exec(f'qicli call ALAudioDevice.setOutputVolume {config.PEPPER_VOLUME}')
             except Exception as e2:
                 print(f"⚠️ Pepper SSH failed: {e2}")
                 raise ConnectionError(f"Could not SSH into Pepper at {self.ip}")
@@ -56,10 +61,23 @@ class PepperRobotSSH:
         behaviors = {
             "Wave": "animations/Stand/Gestures/Hey_1",
             "Bow": "animations/Stand/Gestures/BowShort_1",
-            "RaiseHands": "animations/Stand/Gestures/Explain_1"
+            "RaiseHands": "animations/Stand/Gestures/Explain_1",
+            "Thinking": "animations/Stand/Gestures/Thinking_1"
         }
-        path = behaviors.get(animation_name, f"animations/Stand/Gestures/{animation_name}_1")
-        # Run async in background (using &) so python doesn't block forever if it's long
+        
+        # If it's a known short name, use the mapped path
+        if animation_name in behaviors:
+            path = behaviors[animation_name]
+        # If it already looks like a path (starts with animations/), use as-is
+        elif animation_name.startswith("animations/"):
+            path = animation_name
+        # Otherwise, assume it's a short gesture name and wrap it
+        else:
+            path = f"animations/Stand/Gestures/{animation_name}"
+            if not path.endswith("_1"):
+                path += "_1"
+
+        # Run async in background so we don't block the Python orchestrator
         self._exec(f'qicli call ALAnimationPlayer.run "{path}" > /dev/null 2>&1 &')
 
     def show_image(self, url: str):
@@ -77,6 +95,24 @@ class PepperRobotSSH:
 
     def clear_tablet(self):
         self._exec('qicli call ALTabletService.hideWebview')
+
+    def record_audio(self, duration_sec: float, output_path: str):
+        """Record audio from Pepper's front mic and save to local path on PC."""
+        remote_tmp = "/tmp/pepper_mic.wav"
+        # -d duration, -f format, -r rate. S16_LE 16k is standard for SpeechRecognition.
+        cmd = f"arecord -D plughw:0,0 -d {int(duration_sec)} -f S16_LE -r 16000 {remote_tmp}"
+        print(f"🎤 Pepper recording for {duration_sec}s...")
+        self._exec(cmd)
+        self.download_file(remote_tmp, output_path)
+
+    def download_file(self, remote_path: str, local_path: str):
+        """Download a file from Pepper via SCP."""
+        try:
+            sftp = self.client.open_sftp()
+            sftp.get(remote_path, local_path)
+            sftp.close()
+        except Exception as e:
+            print(f"⚠️ Failed to download file from Pepper: {e}")
 
     def close(self):
         try:

@@ -45,16 +45,19 @@ def temi_navigate_to(location_key: str):
     })
 
     try:
+        # The Temi API blocks until arrival. We set a long timeout of 120s
+        # to allow the robot to drive across the store.
         requests.post(
             f"{TEMI_BASE}/goto",
-            json={"location": target},
-            timeout=3.0,
+            json={"text": target},
+            timeout=120.0,
         )
     except Exception as e:
-        print(f"[temi_api] navigate failed: {e}")
+        print(f"[temi_api] navigate failed/timeout: {e}")
 
-    # Wait for Temi to report arrival. Real Temi exposes /status; we poll.
-    _wait_until_arrived()
+    # Polling /status is disabled as it returns 404 on this robot version.
+    # The blocking POST above serves as our 'arrival' check.
+    time.sleep(1.0)
 
     _push_state({
         "temi_status": "arrived",
@@ -64,16 +67,8 @@ def temi_navigate_to(location_key: str):
 
 
 def _wait_until_arrived(timeout: float = 60.0, poll: float = 0.5):
-    """Poll Temi's /status endpoint until it reports 'arrived' or timeout."""
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        try:
-            r = requests.get(f"{TEMI_BASE}/status", timeout=1.0)
-            if r.ok and r.json().get("status") == "arrived":
-                return
-        except Exception:
-            pass
-        time.sleep(poll)
+    """Placeholder as navigation now blocks in the POST request."""
+    pass
 
 
 def temi_go_home():
@@ -105,8 +100,8 @@ def temi_say(text: str):
     try:
         requests.post(
             f"{TEMI_BASE}/say",
-            json={"text": text},
-            timeout=2.0,
+            json={"text": text, "language": "english"},
+            timeout=5.0,
         )
     except Exception as e:
         print(f"[temi_api] say failed: {e}")
@@ -134,6 +129,57 @@ def temi_show_product(product: dict):
             "stock": product.get("stock"),
         }
     })
+    
+    # Also show it on the REAL Temi screen via Webview
+    html = _product_card_html(product.get("name"), product.get("price"), product.get("aisle"))
+    data_uri = f"data:text/html;base64,{html}"
+    
+    # Try common Temi webview endpoints
+    # We try both 'url' and 'text' keys as some bridges are inconsistent
+    endpoints = ["/webview", "/top_webview", "/display", "/show_url", "/url", "/loadurl"]
+    success = False
+    for ep in endpoints:
+        for key in ["url", "text"]:
+            try:
+                r = requests.post(f"{TEMI_BASE}{ep}", json={key: data_uri}, timeout=1.5)
+                if r.status_code != 404:
+                    success = True
+                    break
+            except:
+                continue
+        if success: break
+    
+    if not success:
+        print(f"⚠️ [temi_api] Could not find a working display endpoint on Temi.")
+
+
+def _product_card_html(name: str, price: float, aisle: str) -> str:
+    """Generate a base64 Data URI for the product card."""
+    import base64
+    content = f"""
+    <html><head><style>
+      body {{ background: #1a1a1a; color: white; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }}
+      .card {{ background: #2d2d2d; padding: 40px; border-radius: 30px; border: 4px solid #4ade80; text-align: center; width: 80%; }}
+      .icon {{ margin-bottom: 20px; }}
+      .name {{ font-size: 48px; font-weight: bold; margin-bottom: 15px; color: #4ade80; }}
+      .price {{ font-size: 42px; color: #ffffff; margin-bottom: 10px; }}
+      .aisle {{ font-size: 32px; color: #9ca3af; }}
+    </style></head><body>
+    <div class="card">
+      <div class="icon">
+        <svg width="100" height="100" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M6 2L3 6V20C3 20.5304 3.21071 21.0391 3.58579 21.4142C3.96086 21.7893 4.46957 22 5 22H19C19.5304 22 20.0391 21.7893 20.4142 21.4142C20.7893 21.0391 21 20.5304 21 20V6L18 2H6Z" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M3 6H21" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M16 10C16 11.0609 15.5786 12.0783 14.8284 12.8284C14.0783 13.5786 13.0609 14 12 14C10.9391 14 9.92172 13.5786 9.17157 12.8284C8.42143 12.0783 8 11.0609 8 10" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="name">{name}</div>
+      <div class="price">EUR {price:.2f}</div>
+      <div class="aisle">Find in: {aisle.replace('_', ' ').title()}</div>
+    </div>
+    </body></html>
+    """
+    return base64.b64encode(content.encode()).decode()
 
 
 def temi_show_image(url: str):

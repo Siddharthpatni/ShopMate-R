@@ -31,7 +31,6 @@ TEMI_DISPLAY_MODE   = True   # show item info on Temi's screen / dashboard
 
 # =========================================================================
 # OPENAI  — natural language understanding
-# =========================================================================
 # Never hardcode keys. Set the environment variable OPENAI_API_KEY before
 # running, e.g.   export OPENAI_API_KEY="sk-..."
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
@@ -41,6 +40,7 @@ OPENAI_MODEL   = "gpt-4o-mini"
 # ROBOT NETWORK
 # =========================================================================
 PEPPER_IP = "172.30.36.41"
+PEPPER_VOLUME = 70
 TEMI_IP   = "172.30.36.31"
 
 # =========================================================================
@@ -53,15 +53,15 @@ DASHBOARD_URL  = f"http://127.0.0.1:{DASHBOARD_PORT}"
 # STORE LAYOUT  — Temi navigation targets
 # =========================================================================
 TEMI_LOCATIONS = {
-    "entrance":        "Entrance",
-    "checkout":        "Entrance",      # same physical position as entrance
-    "produce_aisle":   "A",
-    "dairy_aisle":     "B",
-    "bakery_aisle":    "C",
-    "beverages_aisle": "D",
-    "snacks_aisle":    "A",             # shares location A with produce
-    "frozen_aisle":    "B",             # shares location B with dairy
-    "pantry_aisle":    "C",             # shares location C with bakery
+    "entrance":        "entrance",
+    "checkout":        "entrance",      # same physical position as entrance
+    "produce_aisle":   "a",
+    "dairy_aisle":     "b",
+    "bakery_aisle":    "c",
+    "beverages_aisle": "d",
+    "snacks_aisle":    "a",             # shares location A with produce
+    "frozen_aisle":    "b",             # shares location B with dairy
+    "pantry_aisle":    "c",             # shares location C with bakery
 }
 
 TEMI_HOME = "entrance"
