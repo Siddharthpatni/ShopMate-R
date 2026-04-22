@@ -13,7 +13,7 @@ import os
 # =========================================================================
 # Master switch for microphone input. When False, the system reads typed
 # text from the console instead.
-MIC_MODE = False
+MIC_MODE = True
 
 # Per-robot mic ownership. When MIC_MODE is True these decide which robot
 # "owns" the active microphone channel. Pepper is the default front-desk
@@ -41,7 +41,7 @@ OPENAI_MODEL   = "gpt-4o-mini"
 # =========================================================================
 PEPPER_IP = "172.30.36.41"
 PEPPER_VOLUME = 70
-TEMI_IP   = "172.30.36.31"
+TEMI_IP   = "172.30.36.32"
 
 # =========================================================================
 # DASHBOARD

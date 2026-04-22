@@ -243,3 +243,18 @@ def get_all_items():
 
 def get_low_stock(threshold: int = 5):
     return [{"key": k, **v} for k, v in GROCERIES.items() if v["stock"] <= threshold]
+
+
+def get_categories():
+    """Return a sorted list of unique category names."""
+    return sorted({v["category"] for v in GROCERIES.values()})
+
+
+def get_items_by_category(category: str):
+    """Return all products in a given category."""
+    cat = category.lower().strip()
+    return [
+        {"key": k, **v}
+        for k, v in GROCERIES.items()
+        if v["category"] == cat
+    ]

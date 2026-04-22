@@ -38,10 +38,10 @@ class PepperRobotSSH:
                 print(f"⚠️ Pepper SSH failed: {e2}")
                 raise ConnectionError(f"Could not SSH into Pepper at {self.ip}")
     
-    def _exec(self, cmd: str):
+    def _exec(self, cmd: str, timeout: int = 30):
         """Execute a raw shell command on Pepper."""
         try:
-            stdin, stdout, stderr = self.client.exec_command(cmd)
+            stdin, stdout, stderr = self.client.exec_command(cmd, timeout=timeout)
             stdout.channel.recv_exit_status()  # Block until done
             return stdout.read().decode('utf-8').strip()
         except Exception as e:
@@ -56,7 +56,7 @@ class PepperRobotSSH:
     def set_system_volume(self, volume: int):
         self._exec(f'qicli call ALAudioDevice.setOutputVolume {volume}')
 
-    def play_animation(self, animation_name: str):
+    def play_animation(self, animation_name: str, wait: bool = False):
         # Map simple names to NAOqi behavior paths
         behaviors = {
             "Wave": "animations/Stand/Gestures/Hey_1",
@@ -77,8 +77,11 @@ class PepperRobotSSH:
             if not path.endswith("_1"):
                 path += "_1"
 
-        # Run async in background so we don't block the Python orchestrator
-        self._exec(f'qicli call ALAnimationPlayer.run "{path}" > /dev/null 2>&1 &')
+        # Run async by default so we don't block, unless wait=True
+        if wait:
+            self._exec(f'qicli call ALAnimationPlayer.run "{path}"')
+        else:
+            self._exec(f'qicli call ALAnimationPlayer.run "{path}" > /dev/null 2>&1 &')
 
     def show_image(self, url: str):
         # By using loadUrl directly, we support both images and web dashboards
@@ -97,12 +100,78 @@ class PepperRobotSSH:
         self._exec('qicli call ALTabletService.hideWebview')
 
     def record_audio(self, duration_sec: float, output_path: str):
-        """Record audio from Pepper's front mic and save to local path on PC."""
+        """Record audio from Pepper's front microphone via NAOqi.
+
+        Tries multiple methods:
+          1. ALAudioRecorder (NAOqi native — most reliable)
+          2. arecord with various ALSA devices
+        """
+        import time
         remote_tmp = "/tmp/pepper_mic.wav"
-        # -d duration, -f format, -r rate. S16_LE 16k is standard for SpeechRecognition.
-        cmd = f"arecord -D plughw:0,0 -d {int(duration_sec)} -f S16_LE -r 16000 {remote_tmp}"
-        print(f"🎤 Pepper recording for {duration_sec}s...")
-        self._exec(cmd)
+        dur = int(duration_sec)
+        print(f"🎤 Pepper recording for {dur}s...")
+
+        # Remove old file first
+        self._exec(f'rm -f {remote_tmp}', timeout=3)
+
+        recorded = False
+
+        # --- Method 1: NAOqi ALAudioRecorder ---
+        # Stop any leftover recording
+        self._exec('qicli call ALAudioRecorder.stopMicrophonesRecording', timeout=3)
+
+        # qicli wants bare args, NOT extra-quoted strings
+        start_cmd = (
+            f'qicli call ALAudioRecorder.startMicrophonesRecording '
+            f'{remote_tmp} wav 16000 [0,0,1,0]'
+        )
+        result = self._exec(start_cmd, timeout=5)
+        print(f"   ALAudioRecorder result: {result!r}")
+
+        # Check if file appeared (recording started)
+        time.sleep(0.5)
+        check = self._exec(f'ls -la {remote_tmp} 2>/dev/null', timeout=3)
+
+        if check and "No such file" not in check:
+            # Recording is running — wait for the duration
+            time.sleep(dur)
+            self._exec('qicli call ALAudioRecorder.stopMicrophonesRecording', timeout=5)
+            time.sleep(0.3)
+            # Verify file has content
+            size_check = self._exec(f'stat -c %s {remote_tmp} 2>/dev/null', timeout=3)
+            if size_check and int(size_check) > 1000:
+                recorded = True
+                print(f"   ALAudioRecorder OK — {size_check} bytes")
+
+        # --- Method 2: arecord with multiple devices ---
+        if not recorded:
+            self._exec('qicli call ALAudioRecorder.stopMicrophonesRecording', timeout=3)
+            print("⚠️ ALAudioRecorder didn't produce audio, trying arecord...")
+            self._exec(f'rm -f {remote_tmp}', timeout=3)
+
+            # Try several ALSA device names
+            devices = ["default", "plughw:0,0", "hw:0,0", "plughw:0,1", "pulse"]
+            for dev in devices:
+                self._exec(f'rm -f {remote_tmp}', timeout=3)
+                arecord_cmd = (
+                    f"arecord -D {dev} -d {dur} -f S16_LE "
+                    f"-r 16000 -c 1 {remote_tmp} 2>/dev/null"
+                )
+                self._exec(arecord_cmd, timeout=dur + 5)
+
+                size_check = self._exec(f'stat -c %s {remote_tmp} 2>/dev/null', timeout=3)
+                if size_check and size_check.isdigit() and int(size_check) > 1000:
+                    recorded = True
+                    print(f"   arecord OK with device '{dev}' — {size_check} bytes")
+                    break
+                else:
+                    print(f"   arecord device '{dev}' failed")
+
+        if not recorded:
+            print("❌ All recording methods failed on Pepper")
+            return
+
+        # Download the recorded file
         self.download_file(remote_tmp, output_path)
 
     def download_file(self, remote_path: str, local_path: str):

@@ -11,7 +11,9 @@ import requests
 import config
 
 DASHBOARD = config.DASHBOARD_URL
-TEMI_BASE = f"http://{config.TEMI_IP}:8080"
+
+def _get_temi_base():
+    return f"http://{config.TEMI_IP}:8080"
 
 
 # =========================================================================
@@ -48,7 +50,7 @@ def temi_navigate_to(location_key: str):
         # The Temi API blocks until arrival. We set a long timeout of 120s
         # to allow the robot to drive across the store.
         requests.post(
-            f"{TEMI_BASE}/goto",
+            f"{_get_temi_base()}/goto",
             json={"text": target},
             timeout=120.0,
         )
@@ -81,7 +83,7 @@ def temi_save_location(location_key: str):
     print(f"📍 Temi saving current location as: {location_key} (id: {target})")
     try:
         requests.post(
-            f"{TEMI_BASE}/save_location",
+            f"{_get_temi_base()}/save_location",
             json={"location": target},
             timeout=3.0,
         )
@@ -99,7 +101,7 @@ def temi_say(text: str):
     _push_state({"temi_last_speech": text})
     try:
         requests.post(
-            f"{TEMI_BASE}/say",
+            f"{_get_temi_base()}/say",
             json={"text": text, "language": "english"},
             timeout=5.0,
         )
@@ -141,7 +143,7 @@ def temi_show_product(product: dict):
     for ep in endpoints:
         for key in ["url", "text"]:
             try:
-                r = requests.post(f"{TEMI_BASE}{ep}", json={key: data_uri}, timeout=1.5)
+                r = requests.post(f"{_get_temi_base()}{ep}", json={key: data_uri}, timeout=1.5)
                 if r.status_code != 404:
                     success = True
                     break
@@ -200,6 +202,92 @@ def temi_clear_screen():
     if not _display_enabled():
         return
     _push_state({"temi_screen": None})
+
+
+def temi_show_categories():
+    """Show a product-category dashboard on Temi's screen.
+    Displayed right after the greeting so the customer can browse
+    what the store offers while Pepper talks."""
+    if not _display_enabled():
+        print("📵 Temi display mode OFF — would have shown category dashboard")
+        return
+    print("📺 Temi screen shows product category dashboard")
+
+    from grocery_db import get_all_items
+    import base64
+
+    items = get_all_items()
+    cats = {}
+    for it in items:
+        c = it["category"]
+        if c not in cats:
+            cats[c] = {"count": 0}
+        cats[c]["count"] += 1
+
+    _meta = {
+        "dairy":     {"icon": "&#x1F9C0;", "color": "#4fc3f7"},
+        "milk":      {"icon": "&#x1F95B;", "color": "#81d4fa"},
+        "bakery":    {"icon": "&#x1F950;", "color": "#ffcc80"},
+        "produce":   {"icon": "&#x1F34E;", "color": "#a5d6a7"},
+        "beverages": {"icon": "&#x2615;",  "color": "#ce93d8"},
+        "pantry":    {"icon": "&#x1F35D;", "color": "#ffab91"},
+        "snacks":    {"icon": "&#x1F36B;", "color": "#ef9a9a"},
+        "frozen":    {"icon": "&#x1F9CA;", "color": "#80deea"},
+    }
+
+    tiles = ""
+    for cat_name, info in cats.items():
+        meta = _meta.get(cat_name, {"icon": "&#x1F4E6;", "color": "#90a4ae"})
+        tiles += f"""
+        <div style="background:#2d2d2d; border-radius:20px; padding:20px 14px;
+             text-align:center; border-left:5px solid {meta['color']};
+             box-shadow:0 4px 16px rgba(0,0,0,0.3);">
+          <div style="font-size:42px; margin-bottom:6px;">{meta['icon']}</div>
+          <div style="font-size:18px; font-weight:700; color:{meta['color']};">
+            {cat_name.title()}</div>
+          <div style="font-size:13px; color:#9ca3af;">{info['count']} items</div>
+        </div>"""
+
+    content = f"""<html><head><style>
+      body {{ background:#1a1a1a; color:white; font-family:sans-serif;
+             margin:0; padding:24px; }}
+      h1 {{ text-align:center; font-size:28px; color:#4ade80;
+           margin-bottom:6px; }}
+      p  {{ text-align:center; font-size:16px; color:#9ca3af;
+           margin-bottom:20px; }}
+      .grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }}
+    </style></head><body>
+      <h1>What would you like?</h1>
+      <p>Tell me the product name</p>
+      <div class="grid">{tiles}</div>
+    </body></html>"""
+
+    data_uri = f"data:text/html;base64,{base64.b64encode(content.encode()).decode()}"
+
+    # Push to dashboard state as well
+    _push_state({
+        "temi_screen": {
+            "type": "message",
+            "text": "Showing product categories",
+        }
+    })
+
+    # We try both variations to maximize compatibility with different bridges apps.
+    endpoints = ["/webview", "/top_webview", "/display", "/show_url", "/url", "/loadurl"]
+    success = False
+    for ep in endpoints:
+        for key in ["url", "text"]:
+            try:
+                r = requests.post(f"{_get_temi_base()}{ep}", json={key: data_uri}, timeout=1.5)
+                if r.status_code != 404:
+                    success = True
+                    break
+            except:
+                continue
+        if success: break
+
+    if not success:
+        print("⚠️ [temi_api] Could not find a working display endpoint on Temi.")
 
 
 # =========================================================================
