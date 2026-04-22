@@ -158,26 +158,76 @@ def temi_show_product(product: dict):
 def _product_card_html(name: str, price: float, aisle: str) -> str:
     """Generate a base64 Data URI for the product card."""
     import base64
+    from pepper_api import _UI_CSS_BASE, _CAT_COLORS, _CAT_SVG
+
+    # Get a default color/svg layout for Temi's display (just map everything to pantry for simplicity if category is unknown)
+    # Temi's layout is simpler than Pepper's category cards, it's just a single big card
+    color    = "#2c5282"
+    svg_icon = _CAT_SVG["pantry"].replace("{c}", color)
+
     content = f"""
     <html><head><style>
-      body {{ background: #1a1a1a; color: white; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }}
-      .card {{ background: #2d2d2d; padding: 40px; border-radius: 30px; border: 4px solid #4ade80; text-align: center; width: 80%; }}
-      .icon {{ margin-bottom: 20px; }}
-      .name {{ font-size: 48px; font-weight: bold; margin-bottom: 15px; color: #4ade80; }}
-      .price {{ font-size: 42px; color: #ffffff; margin-bottom: 10px; }}
-      .aisle {{ font-size: 32px; color: #9ca3af; }}
+    {_UI_CSS_BASE}
+      body {{
+        display: flex; align-items: center; justify-content: center;
+        padding: 40px; background: #f5f7fa;
+      }}
+      .card {{
+        width: 100%; max-width: 700px;
+        background: #ffffff;
+        border-radius: 20px;
+        border: 1px solid #e2e8f0;
+        border-top: 6px solid {color};
+        box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
+        padding: 60px; text-align: center;
+      }}
+      .icon-wrap {{
+        width: 120px; height: 120px;
+        margin: 0 auto 30px;
+        border-radius: 50%;
+        background: {color}14;
+        display: flex; align-items: center; justify-content: center;
+      }}
+      .icon-wrap svg {{ width: 64px; height: 64px; stroke: {color}; }}
+      .name {{
+        font-size: 48px; font-weight: 800;
+        color: #1a202c; margin-bottom: 24px;
+        letter-spacing: -1px;
+      }}
+      .price {{
+        font-size: 56px; font-weight: 700;
+        color: #2f855a; margin: 12px 0 32px;
+        letter-spacing: -1px;
+      }}
+      .price .currency {{
+        font-size: 28px; vertical-align: top;
+        color: #718096; margin-right: 8px;
+        font-weight: 600;
+      }}
+      .meta {{
+        padding: 24px;
+        background: #f7fafc;
+        border-radius: 12px;
+        border: 1px solid #edf2f7;
+      }}
+      .aisle-label {{
+        font-size: 14px; font-weight: 700;
+        color: #a0aec0; text-transform: uppercase;
+        letter-spacing: 1.2px; margin-bottom: 8px;
+      }}
+      .aisle-value {{
+        font-size: 28px; font-weight: 700;
+        color: #2d3748;
+      }}
     </style></head><body>
     <div class="card">
-      <div class="icon">
-        <svg width="100" height="100" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6 2L3 6V20C3 20.5304 3.21071 21.0391 3.58579 21.4142C3.96086 21.7893 4.46957 22 5 22H19C19.5304 22 20.0391 21.7893 20.4142 21.4142C20.7893 21.0391 21 20.5304 21 20V6L18 2H6Z" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M3 6H21" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M16 10C16 11.0609 15.5786 12.0783 14.8284 12.8284C14.0783 13.5786 13.0609 14 12 14C10.9391 14 9.92172 13.5786 9.17157 12.8284C8.42143 12.0783 8 11.0609 8 10" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
+      <div class="icon-wrap">{svg_icon}</div>
       <div class="name">{name}</div>
-      <div class="price">EUR {price:.2f}</div>
-      <div class="aisle">Find in: {aisle.replace('_', ' ').title()}</div>
+      <div class="price"><span class="currency">EUR</span>{price:.2f}</div>
+      <div class="meta">
+        <div class="aisle-label">Pick up location</div>
+        <div class="aisle-value">{aisle.replace('_', ' ').title()}</div>
+      </div>
     </div>
     </body></html>
     """
@@ -214,52 +264,66 @@ def temi_show_categories():
     print("📺 Temi screen shows product category dashboard")
 
     from grocery_db import get_all_items
+    from pepper_api import _UI_CSS_BASE, _CAT_COLORS, _CAT_SVG
     import base64
 
     items = get_all_items()
     cats = {}
     for it in items:
-        c = it["category"]
-        if c not in cats:
-            cats[c] = {"count": 0}
-        cats[c]["count"] += 1
+        cats.setdefault(it["category"], []).append(it)
 
-    _meta = {
-        "dairy":     {"icon": "&#x1F9C0;", "color": "#4fc3f7"},
-        "milk":      {"icon": "&#x1F95B;", "color": "#81d4fa"},
-        "bakery":    {"icon": "&#x1F950;", "color": "#ffcc80"},
-        "produce":   {"icon": "&#x1F34E;", "color": "#a5d6a7"},
-        "beverages": {"icon": "&#x2615;",  "color": "#ce93d8"},
-        "pantry":    {"icon": "&#x1F35D;", "color": "#ffab91"},
-        "snacks":    {"icon": "&#x1F36B;", "color": "#ef9a9a"},
-        "frozen":    {"icon": "&#x1F9CA;", "color": "#80deea"},
-    }
-
-    tiles = ""
-    for cat_name, info in cats.items():
-        meta = _meta.get(cat_name, {"icon": "&#x1F4E6;", "color": "#90a4ae"})
-        tiles += f"""
-        <div style="background:#2d2d2d; border-radius:20px; padding:20px 14px;
-             text-align:center; border-left:5px solid {meta['color']};
-             box-shadow:0 4px 16px rgba(0,0,0,0.3);">
-          <div style="font-size:42px; margin-bottom:6px;">{meta['icon']}</div>
-          <div style="font-size:18px; font-weight:700; color:{meta['color']};">
-            {cat_name.title()}</div>
-          <div style="font-size:13px; color:#9ca3af;">{info['count']} items</div>
+    tiles_html = ""
+    for cat_name, products in cats.items():
+        color    = _CAT_COLORS.get(cat_name, "#4a5568")
+        svg_tpl  = _CAT_SVG.get(cat_name, _CAT_SVG["pantry"])
+        svg_icon = svg_tpl.replace("{c}", color)
+        tiles_html += f"""
+        <div class="tile" style="--cat-color: {color};">
+          <div class="tile-icon">{svg_icon}</div>
+          <div class="tile-name">{cat_name.title()}</div>
+          <div class="tile-count">{len(products)} items</div>
         </div>"""
 
     content = f"""<html><head><style>
-      body {{ background:#1a1a1a; color:white; font-family:sans-serif;
-             margin:0; padding:24px; }}
-      h1 {{ text-align:center; font-size:28px; color:#4ade80;
-           margin-bottom:6px; }}
-      p  {{ text-align:center; font-size:16px; color:#9ca3af;
-           margin-bottom:20px; }}
-      .grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }}
+    {_UI_CSS_BASE}
+      body {{ background: #f5f7fa; padding: 32px 40px; display: flex; flex-direction: column; }}
+      .header {{ text-align: center; margin-bottom: 32px; }}
+      .h-title {{ font-size: 38px; font-weight: 800; color: #1a202c; letter-spacing: -0.5px; margin-bottom: 8px; }}
+      .h-sub {{ font-size: 20px; color: #718096; }}
+      
+      .grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; flex: 1; }}
+      .tile {{
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 32px 20px;
+        text-align: center;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+      }}
+      .tile-icon {{
+        width: 80px; height: 80px;
+        margin: 0 auto 20px;
+        background: var(--cat-color)14;
+        border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+      }}
+      .tile-icon svg {{ width: 44px; height: 44px; }}
+      .tile-name {{
+        font-size: 22px; font-weight: 700;
+        color: #1a202c; margin-bottom: 6px;
+        letter-spacing: -0.2px;
+      }}
+      .tile-count {{
+        font-size: 14px; font-weight: 600;
+        color: #718096; text-transform: uppercase;
+        letter-spacing: 0.8px;
+      }}
     </style></head><body>
-      <h1>What would you like?</h1>
-      <p>Tell me the product name</p>
-      <div class="grid">{tiles}</div>
+      <div class="header">
+        <div class="h-title">What would you like?</div>
+        <div class="h-sub">Tell me a product name and I'll bring it to you.</div>
+      </div>
+      <div class="grid">{tiles_html}</div>
     </body></html>"""
 
     data_uri = f"data:text/html;base64,{base64.b64encode(content.encode()).decode()}"
