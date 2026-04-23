@@ -1,0 +1,95 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+    <style>
+    
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+                 'SF Pro Text', 'Roboto', 'Segoe UI',
+                 'Helvetica Neue', Arial, sans-serif;
+    color: #1c1c1e;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+  }
+
+      @keyframes pulse { 0%,100%{transform:scale(1);opacity:1;} 50%{transform:scale(1.05);opacity:0.92;} }
+      @keyframes float { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-8px);} }
+      body {
+        
+    background:
+      radial-gradient(1200px 800px at 10% 10%,
+                      rgba(175, 82, 222, 0.45) 0%, transparent 55%),
+      radial-gradient(1000px 700px at 95% 20%,
+                      rgba(10, 132, 255, 0.50) 0%, transparent 55%),
+      radial-gradient(900px 700px at 20% 100%,
+                      rgba(255, 55, 95, 0.40) 0%, transparent 55%),
+      radial-gradient(900px 700px at 100% 100%,
+                      rgba(255, 159, 10, 0.35) 0%, transparent 55%),
+      linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+
+        color: #fff;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .card {
+        text-align: center; padding: 56px 72px; max-width: 620px;
+        border-radius: 40px;
+        background: rgba(255,255,255,0.10);
+        -webkit-backdrop-filter: blur(40px) saturate(180%);
+                backdrop-filter: blur(40px) saturate(180%);
+        border: 1px solid rgba(255,255,255,0.20);
+        box-shadow:
+          0 1px 0 rgba(255,255,255,0.25) inset,
+          0 20px 50px rgba(0,0,0,0.4),
+          0 40px 100px rgba(0,0,0,0.25);
+      }
+      .mark {
+        width: 116px; height: 116px;
+        background: rgba(255,255,255,0.12);
+        -webkit-backdrop-filter: blur(20px);
+                backdrop-filter: blur(20px);
+        border: 1px solid rgba(255,255,255,0.24);
+        border-radius: 32px;
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 32px;
+        animation: float 3.2s ease-in-out infinite;
+        box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset, 0 16px 40px rgba(0,0,0,0.35);
+      }
+      .mark svg { width: 56px; height: 56px; stroke: #FFB340; }
+      .brand {
+        font-size: 13px; font-weight: 700; letter-spacing: 4px;
+        text-transform: uppercase; color: rgba(255,255,255,0.65);
+        margin-bottom: 16px;
+      }
+      .title    { font-size: 54px; font-weight: 700; margin-bottom: 14px;
+                   letter-spacing: -1.5px; color: #fff; }
+      .subtitle { font-size: 20px; color: rgba(255,255,255,0.75);
+                   font-weight: 400; margin-bottom: 36px; }
+      .cta {
+        display: inline-block; padding: 14px 32px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, #FFB340 0%, #FF6B35 100%);
+        color: #1a1a2e;
+        font-size: 16px; font-weight: 700; letter-spacing: 0.4px;
+        animation: pulse 2.6s ease-in-out infinite;
+        border: 1px solid rgba(255,255,255,0.3);
+        box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset, 0 8px 24px rgba(255,107,53,0.4);
+      }
+    </style></head><body>
+    <div class="card">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M7 11V7a5 5 0 0110 0v4"/>
+          <path d="M4 15.5C4 12.5 6 11 8 11h8c2 0 4 1.5 4 4.5 0 4-3 7.5-8 7.5s-8-3.5-8-7.5z"/>
+          <path d="M16 11V5a2 2 0 00-4 0"/>
+          <path d="M12 11V4a2 2 0 00-4 0v7"/>
+        </svg>
+      </div>
+      <div class="brand">ShopMate Assistant</div>
+      <div class="title">Ready to help</div>
+      <div class="subtitle">Your personal grocery assistant</div>
+      <div class="cta">Wave or say &ldquo;Hello&rdquo; to begin</div>
+    </div>
+    </body></html>
