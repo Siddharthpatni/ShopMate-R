@@ -1,10 +1,19 @@
 # ShopMate-R requirements
 # Install inside a Python 3.10+ venv:
+#   python -m venv venv
+#   source venv/bin/activate      # Windows: venv\Scripts\activate
 #   pip install -r requirements.txt
 
-openai>=1.0
-flask>=3.0
-requests>=2.28
+# ---- Core runtime ----
+openai>=1.0                 # LLM intent extraction (optional at runtime)
+flask>=3.0                  # mock_dashboard.py
+requests>=2.28              # Temi HTTP, dashboard client, m5stack_sensor
+paramiko>=3.0               # real Pepper SSH control (pypepper_ssh.py)
+
+# ---- Voice input (fallback path when Pepper mic isn't used) ----
 SpeechRecognition>=3.10
-PyAudio>=0.2.14
-paramiko>=3.0   # for real Pepper SSH control
+PyAudio>=0.2.14             # may need `sudo apt-get install portaudio19-dev` first
+
+# ---- Optional, used only by speech_recognition's Whisper fallback ----
+# Uncomment if you want an offline ASR safety net:
+# openai-whisper>=20231117

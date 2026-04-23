@@ -18,7 +18,7 @@ MIC_MODE = True
 # Per-robot mic ownership. When MIC_MODE is True these decide which robot
 # "owns" the active microphone channel. Pepper is the default front-desk
 # greeter; Temi's mic lets customers talk to it at the shelf.
-PEPPER_MIC_MODE = True    # listen through Pepper (store entrance)
+PEPPER_MIC_MODE = False    # listen through Pepper (store entrance)
 TEMI_MIC_MODE   = False   # listen through Temi (at the shelf)
 
 # =========================================================================
@@ -39,7 +39,7 @@ OPENAI_MODEL   = "gpt-4o-mini"
 # =========================================================================
 # ROBOT NETWORK
 # =========================================================================
-PEPPER_IP = "172.30.36.41"
+PEPPER_IP = "172.30.36.42"
 PEPPER_VOLUME = 70
 TEMI_IP   = "172.30.36.32"
 
@@ -54,14 +54,14 @@ DASHBOARD_URL  = f"http://127.0.0.1:{DASHBOARD_PORT}"
 # =========================================================================
 TEMI_LOCATIONS = {
     "entrance":        "entrance",
-    "checkout":        "entrance",      # same physical position as entrance
-    "produce_aisle":   "a",
-    "dairy_aisle":     "b",
-    "bakery_aisle":    "c",
-    "beverages_aisle": "d",
-    "snacks_aisle":    "a",             # shares location A with produce
-    "frozen_aisle":    "b",             # shares location B with dairy
-    "pantry_aisle":    "c",             # shares location C with bakery
+    "checkout":        "checkout",      # same physical position as entrance
+    "produce_aisle":   "produce",
+    "dairy_aisle":     "dairy",
+    "bakery_aisle":    "bakery",
+    "beverages_aisle": "beverages",
+    "snacks_aisle":    "snacks",             # shares location A with produce
+    "frozen_aisle":    "frozen",             # shares location B with dairy
+    "pantry_aisle":    "pantry",             # shares location C with bakery
 }
 
 TEMI_HOME = "entrance"

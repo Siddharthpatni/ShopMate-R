@@ -4,6 +4,12 @@ temi_api.py — Temi robot control for ShopMate-R.
 Temi is the mobile robot that navigates the store to grocery aisles.
 No mock mode — this module always sends commands to the real Temi at
 config.TEMI_IP and updates the Flask dashboard in parallel.
+
+Connection layer (navigation, speech, HTTP POSTs, webview endpoint
+discovery) is BYTE-IDENTICAL to the original implementation.  The
+only things I've changed in this file are the HTML strings rendered
+on Temi's screen: a glass-style product card and a glass category
+dashboard.  Everything that touches the wire is unchanged.
 """
 
 import time
@@ -156,81 +162,107 @@ def temi_show_product(product: dict):
 
 
 def _product_card_html(name: str, price: float, aisle: str) -> str:
-    """Generate a base64 Data URI for the product card."""
-    import base64
-    from pepper_api import _UI_CSS_BASE, _CAT_COLORS, _CAT_SVG
+    """Generate a base64 Data URI for the product card.
 
-    # Get a default color/svg layout for Temi's display (just map everything to pantry for simplicity if category is unknown)
-    # Temi's layout is simpler than Pepper's category cards, it's just a single big card
-    color    = "#2c5282"
-    svg_icon = _CAT_SVG["pantry"].replace("{c}", color)
-
-    content = f"""
-    <html><head><style>
-    {_UI_CSS_BASE}
-      body {{
-        display: flex; align-items: center; justify-content: center;
-        padding: 40px; background: #f5f7fa;
-      }}
-      .card {{
-        width: 100%; max-width: 700px;
-        background: #ffffff;
-        border-radius: 20px;
-        border: 1px solid #e2e8f0;
-        border-top: 6px solid {color};
-        box-shadow: 0 8px 30px rgba(15, 23, 42, 0.08);
-        padding: 60px; text-align: center;
-      }}
-      .icon-wrap {{
-        width: 120px; height: 120px;
-        margin: 0 auto 30px;
-        border-radius: 50%;
-        background: {color}14;
-        display: flex; align-items: center; justify-content: center;
-      }}
-      .icon-wrap svg {{ width: 64px; height: 64px; stroke: {color}; }}
-      .name {{
-        font-size: 48px; font-weight: 800;
-        color: #1a202c; margin-bottom: 24px;
-        letter-spacing: -1px;
-      }}
-      .price {{
-        font-size: 56px; font-weight: 700;
-        color: #2f855a; margin: 12px 0 32px;
-        letter-spacing: -1px;
-      }}
-      .price .currency {{
-        font-size: 28px; vertical-align: top;
-        color: #718096; margin-right: 8px;
-        font-weight: 600;
-      }}
-      .meta {{
-        padding: 24px;
-        background: #f7fafc;
-        border-radius: 12px;
-        border: 1px solid #edf2f7;
-      }}
-      .aisle-label {{
-        font-size: 14px; font-weight: 700;
-        color: #a0aec0; text-transform: uppercase;
-        letter-spacing: 1.2px; margin-bottom: 8px;
-      }}
-      .aisle-value {{
-        font-size: 28px; font-weight: 700;
-        color: #2d3748;
-      }}
-    </style></head><body>
-    <div class="card">
-      <div class="icon-wrap">{svg_icon}</div>
-      <div class="name">{name}</div>
-      <div class="price"><span class="currency">EUR</span>{price:.2f}</div>
-      <div class="meta">
-        <div class="aisle-label">Pick up location</div>
-        <div class="aisle-value">{aisle.replace('_', ' ').title()}</div>
-      </div>
-    </div>
-    </body></html>
+    Glass-style card: translucent surface, blurred saturated backdrop,
+    thin white border, inset highlight, soft shadow. The structure
+    (base64 Data URI) and function signature are unchanged — only the
+    rendered HTML/CSS is more polished.
     """
+    import base64
+    safe_aisle = (aisle or "").replace("_", " ").title()
+    content = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+  *,*::before,*::after {{ margin:0; padding:0; box-sizing:border-box; }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+                 'Roboto', 'Segoe UI', Arial, sans-serif;
+    color: #ffffff;
+    background:
+      radial-gradient(1200px 800px at 10% 10%, rgba(175,82,222,0.45) 0%, transparent 55%),
+      radial-gradient(1000px 700px at 95% 20%, rgba(10,132,255,0.50) 0%, transparent 55%),
+      radial-gradient(900px 700px at 20% 100%, rgba(255,55,95,0.40) 0%, transparent 55%),
+      radial-gradient(900px 700px at 100% 100%, rgba(255,159,10,0.35) 0%, transparent 55%),
+      linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }}
+  .card {{
+    width: 100%; max-width: 640px;
+    padding: 44px 48px;
+    text-align: center;
+    border-radius: 32px;
+    background: rgba(255,255,255,0.12);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+            backdrop-filter: blur(40px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.24);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.3) inset,
+      0 20px 50px rgba(0,0,0,0.4),
+      0 40px 100px rgba(0,0,0,0.25);
+    position: relative; overflow: hidden;
+  }}
+  .card::before {{
+    content: ""; position: absolute; inset: 0 0 auto 0; height: 5px;
+    background: linear-gradient(90deg, #34C759 0%, #0A84FF 100%);
+  }}
+  .icon {{
+    width: 112px; height: 112px;
+    margin: 14px auto 28px;
+    border-radius: 28px;
+    background: rgba(255,255,255,0.18);
+    -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,0.35);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.4) inset;
+  }}
+  .icon svg {{ width: 60px; height: 60px; stroke: #ffffff; }}
+  .name {{
+    font-size: 46px; font-weight: 700;
+    margin-bottom: 26px; letter-spacing: -1px;
+    line-height: 1.1; color: #ffffff;
+  }}
+  .price {{
+    font-size: 60px; font-weight: 700;
+    margin-bottom: 20px;
+    letter-spacing: -2px; line-height: 1;
+    color: #ffffff;
+  }}
+  .price .cur {{
+    font-size: 24px; color: rgba(255,255,255,0.6);
+    vertical-align: top; margin-right: 8px; font-weight: 600;
+  }}
+  .aisle {{
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 24px;
+    background: rgba(255,255,255,0.14);
+    -webkit-backdrop-filter: blur(16px);
+            backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.28);
+    border-radius: 999px;
+    font-size: 20px; font-weight: 600;
+    color: rgba(255,255,255,0.95);
+  }}
+  .aisle svg {{ width: 20px; height: 20px; stroke: #34C759; }}
+</style></head><body>
+  <div class="card">
+    <div class="icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4H6z"/>
+        <path d="M3 6h18"/><path d="M16 10a4 4 0 01-8 0"/>
+      </svg>
+    </div>
+    <div class="name">{name}</div>
+    <div class="price"><span class="cur">EUR</span>{float(price or 0):.2f}</div>
+    <div class="aisle">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+      </svg>
+      Find in {safe_aisle}
+    </div>
+  </div>
+</body></html>"""
     return base64.b64encode(content.encode()).decode()
 
 
@@ -264,66 +296,126 @@ def temi_show_categories():
     print("📺 Temi screen shows product category dashboard")
 
     from grocery_db import get_all_items
-    from pepper_api import _UI_CSS_BASE, _CAT_COLORS, _CAT_SVG
     import base64
 
     items = get_all_items()
     cats = {}
     for it in items:
-        cats.setdefault(it["category"], []).append(it)
+        c = it["category"]
+        if c not in cats:
+            cats[c] = {"count": 0, "in_stock": 0}
+        cats[c]["count"] += 1
+        if it["stock"] > 0:
+            cats[c]["in_stock"] += 1
 
-    tiles_html = ""
-    for cat_name, products in cats.items():
-        color    = _CAT_COLORS.get(cat_name, "#4a5568")
-        svg_tpl  = _CAT_SVG.get(cat_name, _CAT_SVG["pantry"])
-        svg_icon = svg_tpl.replace("{c}", color)
-        tiles_html += f"""
-        <div class="tile" style="--cat-color: {color};">
-          <div class="tile-icon">{svg_icon}</div>
-          <div class="tile-name">{cat_name.title()}</div>
-          <div class="tile-count">{len(products)} items</div>
+    # Apple SF-inspired palette + inline SVG icons (no emoji — Temi's
+    # browser may not have an emoji font).
+    _meta = {
+        "dairy":     {"color": "#0A84FF", "on": "#CCE5FF",
+                      "svg": '<ellipse cx="12" cy="12" rx="8" ry="9"/><path d="M8 8c1 2 5 2 8 0"/>'},
+        "milk":      {"color": "#30B0C7", "on": "#CFF2F7",
+                      "svg": '<path d="M8 2h8v4l2 3v11a2 2 0 01-2 2H8a2 2 0 01-2-2V9l2-3V2z"/><path d="M6 9h12"/>'},
+        "bakery":    {"color": "#FF9F0A", "on": "#FFE5B8",
+                      "svg": '<path d="M5 18h14a2 2 0 002-2c0-2-3-3-3-6 0-2-1-4-4-4h-4c-3 0-4 2-4 4 0 3-3 4-3 6a2 2 0 002 2z"/>'},
+        "produce":   {"color": "#34C759", "on": "#CBEFD3",
+                      "svg": '<circle cx="12" cy="14" r="7"/><path d="M12 7V3"/>'},
+        "beverages": {"color": "#AF52DE", "on": "#ECD6F7",
+                      "svg": '<path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/>'},
+        "pantry":    {"color": "#FF6B35", "on": "#FFD3BD",
+                      "svg": '<path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4H6z"/><path d="M3 6h18"/>'},
+        "snacks":    {"color": "#FF375F", "on": "#FFC9D4",
+                      "svg": '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 12h18"/>'},
+        "frozen":    {"color": "#5AC8FA", "on": "#D1EFFC",
+                      "svg": '<path d="M12 2v20M2 12h20"/>'},
+    }
+
+    tiles = ""
+    for cat_name, info in cats.items():
+        meta = _meta.get(cat_name, {"color": "#8E8E93", "on": "#E5E5EA",
+                                     "svg": '<rect x="4" y="4" width="16" height="16" rx="3"/>'})
+        tiles += f"""
+        <div class="tile">
+          <div class="t-icon" style="background: linear-gradient(135deg, {meta['color']} 0%, {meta['on']}33 100%); border-color: {meta['color']}66;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              {meta['svg']}
+            </svg>
+          </div>
+          <div class="t-name">{cat_name.title()}</div>
+          <div class="t-count">{info['in_stock']} of {info['count']} in stock</div>
         </div>"""
 
-    content = f"""<html><head><style>
-    {_UI_CSS_BASE}
-      body {{ background: #f5f7fa; padding: 32px 40px; display: flex; flex-direction: column; }}
-      .header {{ text-align: center; margin-bottom: 32px; }}
-      .h-title {{ font-size: 38px; font-weight: 800; color: #1a202c; letter-spacing: -0.5px; margin-bottom: 8px; }}
-      .h-sub {{ font-size: 20px; color: #718096; }}
-      
-      .grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; flex: 1; }}
+    content = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      *,*::before,*::after {{ margin:0; padding:0; box-sizing:border-box; }}
+      body {{
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+                     'Roboto', 'Segoe UI', Arial, sans-serif;
+        background:
+          radial-gradient(1200px 800px at 10% 10%, rgba(175,82,222,0.45) 0%, transparent 55%),
+          radial-gradient(1000px 700px at 95% 20%, rgba(10,132,255,0.50) 0%, transparent 55%),
+          radial-gradient(900px 700px at 20% 100%, rgba(255,55,95,0.40) 0%, transparent 55%),
+          radial-gradient(900px 700px at 100% 100%, rgba(255,159,10,0.35) 0%, transparent 55%),
+          linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+        color: #fff;
+        min-height: 100vh;
+        padding: 24px 28px;
+      }}
+      .header {{
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 22px;
+        padding: 14px 20px;
+        border-radius: 20px;
+        background: rgba(255,255,255,0.12);
+        -webkit-backdrop-filter: blur(28px) saturate(180%);
+                backdrop-filter: blur(28px) saturate(180%);
+        border: 1px solid rgba(255,255,255,0.22);
+        box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset, 0 8px 24px rgba(0,0,0,0.2);
+      }}
+      h1 {{ font-size: 28px; font-weight: 700; letter-spacing: -0.5px; color: #fff; }}
+      .sub {{ font-size: 14px; color: rgba(255,255,255,0.65); margin-top: 4px;
+              letter-spacing: 0.4px; }}
+      .status {{
+        padding: 8px 16px; border-radius: 999px;
+        background: rgba(52,199,89,0.2);
+        border: 1px solid rgba(52,199,89,0.4);
+        color: #6EEA90;
+        font-size: 13px; font-weight: 700; letter-spacing: 0.4px;
+      }}
+      .grid {{
+        display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px;
+      }}
       .tile {{
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        border-radius: 16px;
-        padding: 32px 20px;
+        padding: 20px 16px;
+        border-radius: 22px;
         text-align: center;
-        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+        background: rgba(255,255,255,0.12);
+        -webkit-backdrop-filter: blur(26px) saturate(180%);
+                backdrop-filter: blur(26px) saturate(180%);
+        border: 1px solid rgba(255,255,255,0.22);
+        box-shadow:
+          0 1px 0 rgba(255,255,255,0.3) inset,
+          0 8px 24px rgba(0,0,0,0.2);
       }}
-      .tile-icon {{
-        width: 80px; height: 80px;
-        margin: 0 auto 20px;
-        background: var(--cat-color)14;
-        border-radius: 50%;
+      .t-icon {{
+        width: 60px; height: 60px;
+        border: 1px solid; border-radius: 18px;
         display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 12px;
+        box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset;
       }}
-      .tile-icon svg {{ width: 44px; height: 44px; }}
-      .tile-name {{
-        font-size: 22px; font-weight: 700;
-        color: #1a202c; margin-bottom: 6px;
-        letter-spacing: -0.2px;
-      }}
-      .tile-count {{
-        font-size: 14px; font-weight: 600;
-        color: #718096; text-transform: uppercase;
-        letter-spacing: 0.8px;
-      }}
+      .t-icon svg {{ width: 32px; height: 32px; }}
+      .t-name  {{ font-size: 18px; font-weight: 700; margin-bottom: 4px;
+                  color: #fff; letter-spacing: -0.3px; }}
+      .t-count {{ font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.6);
+                  text-transform: uppercase; letter-spacing: 1px; }}
     </style></head><body>
       <div class="header">
-        <div class="h-title">What would you like?</div>
-        <div class="h-sub">Tell me a product name and I'll bring it to you.</div>
+        <div>
+          <h1>What would you like?</h1>
+          <div class="sub">Tell me the product name</div>
+        </div>
+        <div class="status">● ShopMate</div>
       </div>
-      <div class="grid">{tiles_html}</div>
+      <div class="grid">{tiles}</div>
     </body></html>"""
 
     data_uri = f"data:text/html;base64,{base64.b64encode(content.encode()).decode()}"

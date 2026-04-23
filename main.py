@@ -2,33 +2,36 @@
 main.py — ShopMate-R entry point.
 
 Runs a multi-customer loop:
-  • Pepper greets a customer.
-  • Customer speaks or types one request.
-  • Orchestrator dispatches Pepper + Temi.
-  • After Temi delivers the item, Pepper says BYE.
-  • The loop resets and waits for the next customer.
+  1. Pepper greets a customer.
+  2. Customer speaks or types one request at a time.
+  3. Orchestrator dispatches Pepper + Temi as needed.
+  4. After Temi delivers the cart, Pepper says BYE.
+  5. The loop resets and waits for the next customer.
 
-Ctrl-C (or typing "shutdown") exits the program completely.
+Ctrl-C (or typing "shutdown") exits the program cleanly.
 """
 
+from __future__ import annotations
+
+import subprocess
 import sys
 import time
-import subprocess
 
 import requests
 
 import config
 import orchestrator
 from pepper_api import (
+    pepper_close,
+    pepper_listen,
     pepper_mic_active,
     pepper_prompt_listen,
-    pepper_close,
     pepper_say,
-    pepper_listen,
-    pepper_show_welcome,
+    pepper_show_categories,
     pepper_show_goodbye,
     pepper_show_idle,
-    pepper_show_categories,
+    pepper_show_welcome,
+    pepper_wave_goodbye,
     pepper_wave_hello,
 )
 from temi_api import (
@@ -39,14 +42,18 @@ from temi_api import (
 
 
 # =========================================================================
-# Mirror stdout to the dashboard /api/log endpoint so staff see logs live
+# Stdout → dashboard log mirror
 # =========================================================================
 
 class TeeWriter:
+    """Wraps sys.stdout so every printed line is also POSTed to the
+    dashboard's /api/log endpoint. Failures are swallowed — nothing the
+    dashboard does should ever break the main loop."""
+
     def __init__(self, original):
         self.original = original
 
-    def write(self, text):
+    def write(self, text: str) -> None:
         self.original.write(text)
         if text.strip():
             try:
@@ -58,7 +65,7 @@ class TeeWriter:
             except Exception:
                 pass
 
-    def flush(self):
+    def flush(self) -> None:
         self.original.flush()
 
 
@@ -66,7 +73,7 @@ class TeeWriter:
 # Dashboard launcher
 # =========================================================================
 
-def start_dashboard():
+def start_dashboard() -> None:
     print(f"📊 Starting ShopMate-R dashboard on port {config.DASHBOARD_PORT}...")
     try:
         subprocess.Popen(
@@ -76,47 +83,69 @@ def start_dashboard():
         )
     except Exception as e:
         print(f"[main] Could not start dashboard: {e}")
+    # Give Flask a moment to bind its socket before we start POSTing logs
     time.sleep(1.5)
 
 
 # =========================================================================
-# Microphone input
+# Microphone / keyboard input
 # =========================================================================
 
-# Track consecutive mic failures so we can fall back to keyboard
-_mic_fail_count = 0
+# Unified fail-counter across both input sites. Reset on every successful
+# recognition or at the start of a new customer session.
 _MIC_FAIL_LIMIT = 3
+_mic_fail_count = 0
+
+
+def _keyboard_fallback(prompt: str = "👤 You (keyboard): ") -> str:
+    """Read one line from stdin, returning 'shutdown' on EOF so the main
+    loop has a consistent signal to exit."""
+    try:
+        return input(prompt)
+    except EOFError:
+        return "shutdown"
+
+
+def _mic_failed() -> bool:
+    """Increment the global mic fail counter; return True once we've
+    crossed the fallback threshold."""
+    global _mic_fail_count
+    _mic_fail_count += 1
+    return _mic_fail_count >= _MIC_FAIL_LIMIT
+
+
+def _mic_succeeded() -> None:
+    global _mic_fail_count
+    _mic_fail_count = 0
 
 
 def listen_from_microphone() -> str:
-    global _mic_fail_count
-
+    """One round of speech capture, with automatic fallback to keyboard
+    after repeated failures."""
+    # --- Pepper mic (preferred, runs over SSH to the robot) ---
     if pepper_mic_active():
         pepper_prompt_listen("I'm listening, what do you need?")
         text = pepper_listen(timeout=6.0)
         if text:
-            _mic_fail_count = 0  # reset on success
+            _mic_succeeded()
             return text
-        else:
-            _mic_fail_count += 1
-            if _mic_fail_count >= _MIC_FAIL_LIMIT:
-                print(f"\n⚠️  Mic failed {_mic_fail_count} times — switching to keyboard.")
-                print("   (Type your request instead)")
-                try:
-                    return input("👤 You (keyboard): ")
-                except EOFError:
-                    return "shutdown"
-            return ""
+        if _mic_failed():
+            print(f"\n⚠️  Mic failed {_mic_fail_count} times — "
+                  "switching to keyboard.")
+            print("   (Type your request instead)")
+            return _keyboard_fallback()
+        return ""
 
+    # --- Fallback chain: speech_recognition on local PC / Temi ---
     try:
         import speech_recognition as sr
     except ImportError:
-        print("[main] speech_recognition not installed — falling back to text input")
-        return input("👤 You: ")
+        print("[main] speech_recognition not installed — "
+              "falling back to text input")
+        return _keyboard_fallback("👤 You: ")
 
     if temi_mic_active():
         temi_prompt_listen("Tell me what you need.")
-
     owner = "Temi" if temi_mic_active() else "PC"
     print(f"🎙️  Listening via {owner}...")
 
@@ -127,7 +156,7 @@ def listen_from_microphone() -> str:
             audio = r.listen(source, timeout=6, phrase_time_limit=8)
         text = r.recognize_google(audio)
         print(f"👤 ({owner} mic) Customer: {text}")
-        _mic_fail_count = 0
+        _mic_succeeded()
         return text
     except sr.WaitTimeoutError:
         return ""
@@ -142,94 +171,89 @@ def listen_from_microphone() -> str:
 def read_customer_input() -> str:
     if config.MIC_MODE and (pepper_mic_active() or temi_mic_active()):
         return listen_from_microphone()
-    try:
-        return input("👤 You: ")
-    except EOFError:
-        return "shutdown"
+    return _keyboard_fallback("👤 You: ")
 
 
 # =========================================================================
-# Banner
+# Startup banner
 # =========================================================================
 
-def print_banner():
-    print("=" * 64)
+def print_banner() -> None:
+    bar = "=" * 64
+    print(bar)
     print("  🛒  ShopMate-R — Multi-Robot Grocery Assistant")
     print("      Pepper (front desk)  +  Temi (mobile shelf runner)")
-    print("=" * 64)
+    print(bar)
     print(f"  MIC_MODE     : {config.MIC_MODE}   "
           f"(Pepper={config.PEPPER_MIC_MODE}, Temi={config.TEMI_MIC_MODE})")
     print(f"  DISPLAY_MODE : {config.DISPLAY_MODE}  "
           f"(Pepper={config.PEPPER_DISPLAY_MODE}, Temi={config.TEMI_DISPLAY_MODE})")
     print(f"  Dashboard    : {config.DASHBOARD_URL}")
-    print("=" * 64)
+    print(bar)
 
 
 # =========================================================================
-# Main loop
+# Customer sessions
 # =========================================================================
+
+_GREETING_WORDS = (
+    "hello", "hi", "hey",
+    "good morning", "good afternoon", "good evening",
+)
+_SHUTDOWN_WORDS = {"shutdown", "exit", "quit"}
+
 
 def wait_for_hello() -> bool:
-    """Block until the user types 'hello' (or a greeting variant).
+    """Block until the user greets Pepper.
 
-    Shows an idle screen on Pepper's tablet prompting the next customer.
-    Returns True when hello received, or False on shutdown request.
-    Falls back to keyboard after repeated mic failures.
+    Shows the idle screen while waiting. Returns True on greeting,
+    False if the user asked to shut down. Falls back to keyboard
+    after repeated mic failures.
     """
     global _mic_fail_count
-    _mic_fail_count = 0  # reset for new session
+    _mic_fail_count = 0
 
     pepper_show_idle()
     temi_show_message("Say Hello to start!")
     print("\n💤 Pepper is idle. Type 'hello' to start a new session.\n")
 
-    mic_fails = 0
-
     while True:
-        try:
-            use_mic = (config.MIC_MODE and pepper_mic_active()
-                       and mic_fails < _MIC_FAIL_LIMIT)
-            if use_mic:
-                # In mic mode, listen for "hello" via Pepper's mic
-                text = pepper_listen(timeout=6.0)
-                if not text:
-                    mic_fails += 1
-                    if mic_fails >= _MIC_FAIL_LIMIT:
-                        print(f"\n⚠️  Mic failed {mic_fails} times — "
-                              "switching to keyboard for hello.")
-                    continue
-                mic_fails = 0
-            else:
-                text = input("👤 You: ")
-        except EOFError:
-            return False
+        use_mic = (config.MIC_MODE
+                   and pepper_mic_active()
+                   and _mic_fail_count < _MIC_FAIL_LIMIT)
+
+        if use_mic:
+            text = pepper_listen(timeout=6.0)
+            if not text:
+                if _mic_failed():
+                    print(f"\n⚠️  Mic failed {_mic_fail_count} times — "
+                          "switching to keyboard for hello.")
+                continue
+            _mic_succeeded()
+        else:
+            text = _keyboard_fallback("👤 You: ")
 
         if not text:
             continue
 
         clean = text.strip().lower()
-        if clean in {"shutdown", "exit", "quit"}:
+        if clean in _SHUTDOWN_WORDS:
             return False
-
-        # Accept greeting variants
-        if any(w in clean for w in ["hello", "hi", "hey", "good morning",
-                                     "good afternoon", "good evening"]):
+        if any(w in clean for w in _GREETING_WORDS):
             return True
 
         print("💤 (Pepper is sleeping — say 'hello' to wake me up)")
 
 
-def serve_one_customer():
-    """Handle a single customer from greeting to goodbye.
+def serve_one_customer() -> str:
+    """Handle a single customer end-to-end.
 
-    Pepper greets, then we accept requests until the orchestrator
-    signals the conversation has ended (which happens automatically
-    after Temi delivers an item, or if the customer says goodbye).
+    Returns 'SHUTDOWN' if the user asked to exit, 'NEXT' otherwise.
     """
     orchestrator.reset()
     orchestrator.run_turn("hello")
 
-    # After greeting, show category dashboard on Pepper, simple text on Temi
+    # After greeting, show category dashboard on Pepper, text on Temi
     pepper_show_categories()
     temi_show_message("How can I help you? Tell me what you need!")
 
@@ -237,13 +261,28 @@ def serve_one_customer():
         msg = read_customer_input()
         if not msg:
             continue
-        if msg.strip().lower() in {"shutdown", "exit", "quit"}:
+        if msg.strip().lower() in _SHUTDOWN_WORDS:
             return "SHUTDOWN"
         orchestrator.run_turn(msg)
     return "NEXT"
 
 
-def main():
+# =========================================================================
+# Main
+# =========================================================================
+
+def _shutdown() -> None:
+    """Final goodbye + clean SSH teardown."""
+    pepper_show_goodbye()
+    pepper_wave_goodbye(wait=False)
+    pepper_say("Goodbye, See You Soon!", gesture=False)
+    # Give the wave animation time to complete before we cut the SSH socket
+    time.sleep(2.0)
+    pepper_close()
+    print("👋 ShopMate-R shut down cleanly.")
+
+
+def main() -> None:
     print_banner()
     start_dashboard()
     sys.stdout = TeeWriter(sys.stdout)
@@ -251,37 +290,25 @@ def main():
     print("\nReady. Waiting for customers. "
           "Type 'shutdown' to stop the program entirely.\n")
 
-    # Startup interaction — first customer gets a warm welcome
+    # First customer gets a warm welcome without the hello gate
     pepper_show_welcome()
-    pepper_wave_hello()
-    import time
+    # Redundant wave removed — orchestrator handles it in the greet loop
     time.sleep(1.0)
 
     try:
-        # --- First customer (no hello-gate needed on startup) ---
-        result = serve_one_customer()
-        if result == "SHUTDOWN":
+        if serve_one_customer() == "SHUTDOWN":
             raise SystemExit
 
-        # --- Subsequent customers: wait for "hello" each time ---
+        # Subsequent customers must greet Pepper to begin
         while True:
             if not wait_for_hello():
-                break  # shutdown requested
-            result = serve_one_customer()
-            if result == "SHUTDOWN":
+                break
+            if serve_one_customer() == "SHUTDOWN":
                 break
     except (KeyboardInterrupt, SystemExit):
         print("\n[main] Shutting down...")
     finally:
-        pepper_show_goodbye()
-        from pepper_api import pepper_wave_goodbye
-        pepper_wave_goodbye(wait=False)
-        pepper_say("Goodbye, See You Soon!", gesture=False)
-        
-        import time
-        time.sleep(2.0)  # Wait for wave to visually complete before cutting SSH
-        pepper_close()
-        print("👋 ShopMate-R shut down cleanly.")
+        _shutdown()
 
 
 if __name__ == "__main__":

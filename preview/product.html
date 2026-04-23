@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+                 'SF Pro Text', 'Roboto', 'Segoe UI',
+                 'Helvetica Neue', Arial, sans-serif;
+    color: #1c1c1e;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+  }
+
+  body {
+    
+    background:
+      radial-gradient(1200px 800px at 10% 10%,
+                      rgba(175, 82, 222, 0.45) 0%, transparent 55%),
+      radial-gradient(1000px 700px at 95% 20%,
+                      rgba(10, 132, 255, 0.50) 0%, transparent 55%),
+      radial-gradient(900px 700px at 20% 100%,
+                      rgba(255, 55, 95, 0.40) 0%, transparent 55%),
+      radial-gradient(900px 700px at 100% 100%,
+                      rgba(255, 159, 10, 0.35) 0%, transparent 55%),
+      linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    width: 100%; max-width: 560px;
+    padding: 40px 44px;
+    text-align: center;
+    border-radius: 32px;
+    background: rgba(255,255,255,0.72);
+    -webkit-backdrop-filter: blur(30px) saturate(200%);
+            backdrop-filter: blur(30px) saturate(200%);
+    border: 1px solid rgba(255,255,255,0.85);
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.9) inset,
+      0 -1px 0 rgba(255,255,255,0.3) inset,
+      0 16px 40px rgba(16,24,40,0.18),
+      0 32px 80px rgba(16,24,40,0.14);
+    position: relative; overflow: hidden;
+  }
+  .card::before {
+    content: ""; position: absolute; top: 0; right: 0; left: 0; height: 5px;
+    background: linear-gradient(90deg, #30B0C7 0%, #0F5869 100%);
+    opacity: 0.95;
+  }
+  .icon-wrap {
+    width: 108px; height: 108px;
+    margin: 14px auto 24px;
+    border-radius: 28px;
+    background: linear-gradient(135deg, #CFF2F7 0%, rgba(255,255,255,0.6) 100%);
+    border: 1px solid rgba(255,255,255,0.8);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,0.9) inset,
+      0 8px 24px #30B0C733;
+  }
+  .icon-wrap svg { width: 56px; height: 56px; }
+  .tag {
+    display: inline-block;
+    padding: 6px 14px; border-radius: 999px;
+    background: rgba(255,255,255,0.6);
+    -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.8);
+    color: #0F5869;
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1.6px;
+    margin-bottom: 16px;
+  }
+  .name  { font-size: 32px; font-weight: 700; color: #1c1c1e;
+            margin-bottom: 24px; letter-spacing: -0.8px; line-height: 1.1; }
+  .price { font-size: 60px; font-weight: 700; color: #1c1c1e;
+            letter-spacing: -2px; line-height: 1; margin-bottom: 8px; }
+  .price .cur { font-size: 22px; vertical-align: top; color: #8E8E93;
+                 margin-right: 6px; font-weight: 600; }
+  .meta { display: -webkit-flex; display: flex; -webkit-justify-content: center; justify-content: center; margin: 26px 0 22px; }
+  .meta > * + * { margin-left: 10px; }
+  .chip {
+    display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+    padding: 10px 18px; border-radius: 999px;
+    background: rgba(255,255,255,0.5);
+    -webkit-backdrop-filter: blur(14px);
+            backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.8);
+    color: #1c1c1e; font-size: 14px; font-weight: 600;
+  }
+  .chip svg { width: 16px; height: 16px; stroke: #30B0C7; margin-right: 8px; }
+  .pill {
+    display: inline-block;
+    padding: 10px 24px; border-radius: 999px;
+    background: rgba(52,199,89,0.18);
+    -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.4);
+    color: #1E7A3A;
+    font-size: 14px; font-weight: 700; letter-spacing: 0.3px;
+  }
+</style></head><body>
+  <div class="card">
+    <div class="icon-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="#30B0C7" stroke-width="2" stroke-linecap="round"><path d="M8 2h8v4l2 3v11a2 2 0 01-2 2H8a2 2 0 01-2-2V9l2-3V2z"/><path d="M6 9h12"/></svg></div>
+    <div class="tag">Milk</div>
+    <div class="name">Whole Milk (1L)</div>
+    <div class="price"><span class="cur">EUR</span>1.29</div>
+    <div class="meta">
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/>
+        </svg>
+        <span>Dairy Aisle</span>
+      </div>
+      <div class="chip">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 7l-8-4-8 4v10l8 4 8-4V7z"/><path d="M4 7l8 4 8-4"/><path d="M12 11v10"/>
+        </svg>
+        <span>12 units</span>
+      </div>
+    </div>
+    <div class="pill">12 in stock</div>
+  </div>
+</body></html>

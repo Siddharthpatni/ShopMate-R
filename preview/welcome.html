@@ -1,0 +1,96 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+    <style>
+    
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+                 'SF Pro Text', 'Roboto', 'Segoe UI',
+                 'Helvetica Neue', Arial, sans-serif;
+    color: #1c1c1e;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+  }
+
+      @keyframes floaty { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-10px);} }
+      body {
+        
+    background:
+      radial-gradient(1200px 800px at 10% 10%,
+                      rgba(175, 82, 222, 0.45) 0%, transparent 55%),
+      radial-gradient(1000px 700px at 95% 20%,
+                      rgba(10, 132, 255, 0.50) 0%, transparent 55%),
+      radial-gradient(900px 700px at 20% 100%,
+                      rgba(255, 55, 95, 0.40) 0%, transparent 55%),
+      radial-gradient(900px 700px at 100% 100%,
+                      rgba(255, 159, 10, 0.35) 0%, transparent 55%),
+      linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+
+        color: #fff;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .card {
+        text-align: center; padding: 56px 72px; max-width: 680px;
+        border-radius: 40px;
+        background: rgba(255,255,255,0.12);
+        -webkit-backdrop-filter: blur(40px) saturate(180%);
+                backdrop-filter: blur(40px) saturate(180%);
+        border: 1px solid rgba(255,255,255,0.22);
+        box-shadow:
+          0 1px 0 rgba(255,255,255,0.3) inset,
+          0 20px 50px rgba(0,0,0,0.35),
+          0 40px 100px rgba(0,0,0,0.25);
+      }
+      .mark {
+        width: 112px; height: 112px;
+        background: rgba(255,255,255,0.18);
+        -webkit-backdrop-filter: blur(20px);
+                backdrop-filter: blur(20px);
+        border: 1px solid rgba(255,255,255,0.35);
+        border-radius: 32px;
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 32px;
+        animation: floaty 4s ease-in-out infinite;
+        box-shadow: 0 1px 0 rgba(255,255,255,0.4) inset, 0 16px 40px rgba(0,0,0,0.3);
+      }
+      .mark svg { width: 56px; height: 56px; stroke: #fff; }
+      .brand {
+        font-size: 13px; font-weight: 700; letter-spacing: 4px;
+        text-transform: uppercase; color: rgba(255,255,255,0.78);
+        margin-bottom: 16px;
+      }
+      .title    { font-size: 64px; font-weight: 700; margin-bottom: 14px;
+                   letter-spacing: -2px; line-height: 1.05; }
+      .subtitle { font-size: 22px; font-weight: 400;
+                   color: rgba(255,255,255,0.88); margin-bottom: 32px; }
+      .chips    { display: -webkit-flex; display: flex; -webkit-justify-content: center; justify-content: center; -webkit-flex-wrap: wrap; flex-wrap: wrap; }
+      .chip { margin: 0 5px 10px; }
+      .chip {
+        padding: 10px 18px;
+        background: rgba(255,255,255,0.14);
+        -webkit-backdrop-filter: blur(16px);
+                backdrop-filter: blur(16px);
+        border: 1px solid rgba(255,255,255,0.26);
+        border-radius: 999px;
+        font-size: 14px; font-weight: 600;
+        color: rgba(255,255,255,0.95);
+      }
+    </style></head><body>
+    <div class="card">
+      <div class="mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
+          <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+          <path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/>
+        </svg>
+      </div>
+      <div class="brand">ShopMate Assistant</div>
+      <div class="title">Welcome</div>
+      <div class="subtitle">How can I help you shop today?</div>
+      <div class="chips">
+        <div class="chip">Voice-guided</div>
+        <div class="chip">Powered by Pepper &amp; Temi</div>
+      </div>
+    </div>
+    </body></html>
