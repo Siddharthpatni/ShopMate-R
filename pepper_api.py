@@ -1326,3 +1326,4 @@ def pepper_close():
         print("🤖 Pepper connection closed")
     except Exception as e:
         print(f"[pepper_api] close failed: {e}")
+ 
