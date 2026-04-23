@@ -366,3 +366,4 @@ WebView. Preview your changes with `tablet_preview.py` first;
 anything that looks right in desktop Chrome should also render on
 Pepper, but very modern CSS (`container-queries`, `:has()`, etc.)
 may silently fail on the robot.
+# ShopMate-R Final Migration
