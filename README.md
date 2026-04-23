@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ShopMate-R
 
 **Multi-robot grocery assistant** built around two robots and a web dashboard.
@@ -368,3 +369,6 @@ Pepper, but very modern CSS (`container-queries`, `:has()`, etc.)
 may silently fail on the robot.
 # ShopMate-R Final Migration
 ## Deployment Ready
+=======
+# Vivek Devganiya's Workspace
+>>>>>>> gitlab/Vivek-Devganiya
