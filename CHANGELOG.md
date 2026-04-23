@@ -127,3 +127,4 @@ this project adheres to [Semantic Versioning](https://semver.org/).
 - Public function signatures across every module — diffing
   `ast.FunctionDef` nodes pre/post shows zero removals; the only
   addition is `pepper_nod_yes`.
+# v1.0.2 Stage
