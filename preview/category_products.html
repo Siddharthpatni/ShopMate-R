@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <style>
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+                'SF Pro Text', 'Roboto', 'Segoe UI',
+                'Helvetica Neue', Arial, sans-serif;
+            color: #1c1c1e;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+            line-height: 1.4;
+            letter-spacing: -0.01em;
+        }
+
+        body {
+            background:
+                radial-gradient(1100px 800px at 10% 10%, #0A84FF66 0%, transparent 55%),
+                radial-gradient(900px 700px at 90% 90%, #003D8055 0%, transparent 55%),
+                radial-gradient(800px 600px at 50% 50%, rgba(175, 82, 222, 0.25) 0%, transparent 55%),
+                linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+            padding: 22px;
+            color: #fff;
+        }
+
+        .header {
+            border-radius: 24px;
+            padding: 20px 24px;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            position: relative;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.14);
+            -webkit-backdrop-filter: blur(30px) saturate(180%);
+            backdrop-filter: blur(30px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35) inset, 0 12px 32px rgba(0, 0, 0, 0.25);
+        }
+
+        .header::before {
+            content: "";
+            position: absolute;
+            inset: 0 0 auto 0;
+            height: 4px;
+            background: linear-gradient(90deg, #0A84FF 0%, #003D80 100%);
+        }
+
+        .h-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #0A84FF 0%, #003D80 100%);
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 8px 20px #0A84FF55;
+        }
+
+        .h-icon svg {
+            width: 32px;
+            height: 32px;
+        }
+
+        .h-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.6px;
+            line-height: 1.1;
+        }
+
+        .h-sub {
+            font-size: 12px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.7);
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-top: 4px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            /* 2 columns */
+            gap: 12px;
+        }
+
+        .product {
+            border-radius: 18px;
+            padding: 16px 18px;
+            background: rgba(255, 255, 255, 0.14);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            backdrop-filter: blur(24px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            border-left: 3px solid #0A84FF;
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset, 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .p-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .p-name {
+            font-size: 17px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.2px;
+        }
+
+        .p-price {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+            white-space: nowrap;
+        }
+
+        .p-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .p-aisle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.7);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .p-aisle svg {
+            width: 13px;
+            height: 13px;
+            stroke: rgba(255, 255, 255, 0.7);
+        }
+
+        .p-stock {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 5px 12px;
+            border-radius: 999px;
+            letter-spacing: 0.3px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            -webkit-backdrop-filter: blur(10px);
+            backdrop-filter: blur(10px);
+        }
+
+        .hint {
+            margin-top: 18px;
+            padding: 14px 20px;
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.95);
+            background: rgba(255, 255, 255, 0.10);
+            -webkit-backdrop-filter: blur(24px);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .hint svg {
+            width: 20px;
+            height: 20px;
+            stroke: #FFB340;
+            flex-shrink: 0;
+        }
+
+        .hint strong {
+            color: #fff;
+            font-weight: 700;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <div class="h-icon"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2"
+                stroke-linecap="round">
+                <ellipse cx="12" cy="12" rx="8" ry="9" />
+                <path d="M8 8c1 2 5 2 8 0" />
+                <path d="M9 14c.5 1 4.5 1 6 0" />
+            </svg></div>
+        <div>
+            <div class="h-title">Dairy</div>
+            <div class="h-sub">2 products available</div>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="product">
+            <div class="p-head">
+                <div class="p-name">Eggs (10-pack)</div>
+                <div class="p-price">€2.89</div>
+            </div>
+            <div class="p-meta">
+                <div class="p-aisle">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                        <circle cx="12" cy="10" r="3" />
+                    </svg>
+                    <span>Dairy Aisle</span>
+                </div>
+                <div class="p-stock" style="background:rgba(52,199,89,0.18); color:#1E7A3A;">20 in stock</div>
+            </div>
+        </div>
+        <div class="product">
+            <div class="p-head">
+                <div class="p-name">Butter (250g)</div>
+                <div class="p-price">€2.49</div>
+            </div>
+            <div class="p-meta">
+                <div class="p-aisle">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                        <circle cx="12" cy="10" r="3" />
+                    </svg>
+                    <span>Dairy Aisle</span>
+                </div>
+                <div class="p-stock" style="background:rgba(255,149,0,0.18); color:#8A4B00;">Only 8 left</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="hint">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2a3 3 0 00-3 3v7a3 3 0 006 0V5a3 3 0 00-3-3z" />
+            <path d="M19 10v2a7 7 0 01-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="22" />
+        </svg>
+        <div><strong>Say the product name</strong> to add it to your cart &mdash; e.g. &ldquo;I want milk&rdquo;</div>
+    </div>
+
+</body>
+
+</html>
