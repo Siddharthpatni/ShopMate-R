@@ -1,5 +1,28 @@
-.env
-.venv/
-data/
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# Virtualenvs
+venv/
+.venv/
+env/
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Runtime scratch
+tmp_*.wav
+*.log
+
+# Dev tooling output
+preview/                # tablet_preview.py renders here
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+.DS_Store

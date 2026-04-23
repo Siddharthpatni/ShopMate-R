@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # ShopMate-R
 
 **Multi-robot grocery assistant** built around two robots and a web dashboard.
@@ -14,22 +13,6 @@ single optimized trip through the store.
 > `/api/sensor` endpoint the M5Stack shelf sensors post to.
 
 ---
-### Initial Roadmap
-
-- [x] Initial project setup and repository creation.
-- [x] Investigate `pypepper` API for Pepper's interaction capabilities.
-- [x] Investigate `pytemi` API for Temi's navigation capabilities.
-- [x] Set up main conversation logic for natural language requests.
-- [x] Connect M5Stack sensors for shelf pickup detection.
-- [x] Develop a Flask-based live dashboard.
-- [x] Conduct live testing in the Ostfalia robotics lab.
-
-## Team
-
-- Siddharth Patni
-- Charmin Thesiya
-- Vivek Devganiya 
-- Mansi Dayani
 
 ## Table of contents
 
@@ -367,8 +350,3 @@ WebView. Preview your changes with `tablet_preview.py` first;
 anything that looks right in desktop Chrome should also render on
 Pepper, but very modern CSS (`container-queries`, `:has()`, etc.)
 may silently fail on the robot.
-# ShopMate-R Final Migration
-## Deployment Ready
-=======
-# Vivek Devganiya's Workspace
->>>>>>> gitlab/Vivek-Devganiya

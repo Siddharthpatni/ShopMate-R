@@ -502,4 +502,3 @@ def temi_prompt_listen(prompt: str = "Tell me what you need."):
 
 def temi_wait(seconds: float):
     time.sleep(seconds)
- 
