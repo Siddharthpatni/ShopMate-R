@@ -107,3 +107,20 @@ def test_reset_clears_everything():
     orchestrator.reset()
     assert orchestrator.conversation_ended is False
     assert orchestrator._cart == []
+
+
+def test_remove_item():
+    import orchestrator
+    orchestrator.run_turn("hello")
+    orchestrator.run_turn("I need milk")
+    orchestrator.run_turn("I need chocolate")
+    assert len(orchestrator._cart) == 2
+    
+    # Try to remove milk
+    orchestrator.run_turn("remove the milk")
+    assert len(orchestrator._cart) == 1
+    assert orchestrator._cart[0]["key"] == "chocolate"
+    
+    # Try to remove something not there
+    orchestrator.run_turn("remove bananas")
+    assert len(orchestrator._cart) == 1

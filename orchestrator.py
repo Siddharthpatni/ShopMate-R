@@ -70,7 +70,7 @@ INTENT_SYSTEM_PROMPT = """You are the NLU module of a grocery store robot
 assistant called ShopMate-R. Given a customer message, return a JSON
 object with these fields:
 
-  intent      one of: find_item, check_price, suggest_alternative,
+  intent      one of: find_item, check_price, suggest_alternative, remove_item,
                        browse_category, greeting, help, done, goodbye, unknown
   item        the grocery item the customer is asking about, or null
   category    the product category if intent is browse_category, or null
@@ -94,6 +94,7 @@ _HI_WORDS   = ("hello", "hi ", "hey", "good morning", "good afternoon")
 _ALT_WORDS  = ("instead", "alternative", "similar", "other")
 _PRICE_WORDS = ("price", "how much", "cost")
 _CANCEL_WORDS = ("cancel", "abort", "never mind", "nevermind", "stop")
+_REMOVE_WORDS = ("remove", "delete", "don't want", "dont want", "take out", "drop")
 
 
 def extract_intent(message: str) -> dict:
@@ -138,6 +139,10 @@ def _fallback_intent(message: str) -> dict:
         return {"intent": "greeting", "item": None, "category": None, "confidence": 0.9}
     if "help" in m or "what can you" in m:
         return {"intent": "help", "item": None, "category": None, "confidence": 0.9}
+
+    if any(w in m for w in _REMOVE_WORDS):
+        return {"intent": "remove_item", "item": _guess_item(m),
+                "category": None, "confidence": 0.8}
 
     # Price/alternative keywords are specific signals — check them FIRST,
     # before category matching, so "how much is milk" resolves to
@@ -299,6 +304,32 @@ def _handle_suggest_alternative(item_query: str):
     _suggest_alternative_for_cart(item_query or "")
 
 
+def _handle_remove_item(item_query: str):
+    global _cart
+    if not item_query:
+        pepper_say("Which item would you like me to remove?")
+        return
+
+    # Try to find the item in the cart
+    found_idx = -1
+    for i, item in enumerate(_cart):
+        if item_query in item["key"] or item_query in item["name"].lower():
+            found_idx = i
+            break
+
+    if found_idx != -1:
+        removed = _cart.pop(found_idx)
+        pepper_say(f"I've removed {removed['name']} from your cart.")
+        if _cart:
+            pepper_show_cart(_cart)
+            pepper_say(f"You now have {_cart_summary()} in your cart.")
+        else:
+            pepper_clear_tablet()
+            pepper_say("Your cart is now empty.")
+    else:
+        pepper_say(f"I couldn't find {item_query} in your cart.")
+
+
 def _handle_done():
     if not _cart:
         pepper_say("Your cart is empty. Tell me what you need first!")
@@ -423,6 +454,7 @@ _HANDLERS = {
     "check_price":         lambda p: _handle_check_price(p.get("item")),
     "suggest_alternative": lambda p: _handle_suggest_alternative(
                                p.get("item") or p["_raw"]),
+    "remove_item":         lambda p: _handle_remove_item(p.get("item") or p["_raw"]),
     "done":                lambda p: _handle_done(),
     "cancel":              lambda p: _handle_cancel(),
     "goodbye":             lambda p: _handle_goodbye(),
